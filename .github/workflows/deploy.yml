@@ -17,6 +17,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: client/package-lock.json
 
+      - name: Install root deps (Hono for Pages Functions)
+        run: npm ci
+
       - name: Install client deps
         run: cd client && npm ci
 
