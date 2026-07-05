@@ -22,3 +22,6 @@ Thumbs.db
 # Editor
 .vscode/
 *.swp
+
+# Wrangler local state
+.wrangler/

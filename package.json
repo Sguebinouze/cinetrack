@@ -1,0 +1,34 @@
+{
+  "name": "cinetrack",
+  "version": "1.0.0",
+  "description": "Application mobile-first de suivi de films et séries.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "deploy": "npm run build && wrangler pages deploy client/dist",
+    "db:migrate:local": "wrangler d1 migrations apply cinetrack-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply cinetrack-db --remote",
+    "pages:dev": "wrangler pages dev client/dist --d1=DB"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sguebinouze/cinetrack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/Sguebinouze/cinetrack/issues"
+  },
+  "homepage": "https://github.com/Sguebinouze/cinetrack#readme",
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "wrangler": "^4.107.0"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.27"
+  }
+}

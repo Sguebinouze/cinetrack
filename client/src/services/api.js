@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'http://localhost:3001/api' })
+// En prod (Pages), l'API est sur le même domaine via /api
+// En dev local, on proxy vers Express sur :3001
+const BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3001/api'
+const api = axios.create({ baseURL: BASE })
 
 export const tmdbApi = {
   search: (q, page = 1) => api.get('/tmdb/search', { params: { q, page } }).then(r => r.data),

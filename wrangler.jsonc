@@ -1,0 +1,19 @@
+{
+  "name": "cinetrack",
+  "pages_build_output_dir": "./client/dist",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cinetrack-db",
+      "database_id": "d59bae2f-25cd-42ad-b987-647a772ec9e7",
+      "migrations_dir": "./migrations"
+    }
+  ],
+
+  "vars": {
+    "ENVIRONMENT": "production"
+  }
+}
