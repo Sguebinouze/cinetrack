@@ -127,7 +127,7 @@ export default function DetailPage() {
   const isMutating = addMutation.isPending || updateMutation.isPending
 
   return (
-    <div className="flex flex-col min-h-full pb-nav">
+    <div className="flex flex-col h-full overflow-y-auto scrollbar-none pb-nav">
       {/* Backdrop */}
       <div className="relative">
         {backdrop
