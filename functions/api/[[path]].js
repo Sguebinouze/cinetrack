@@ -241,4 +241,4 @@ app.get('/stats', async (c) => {
 
 app.get('/health', (c) => c.json({ ok: true }))
 
-export const onRequest = app.fetch
+export const onRequest = (context) => app.fetch(context.request, context.env, context)
