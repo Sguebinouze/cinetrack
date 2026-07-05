@@ -40,7 +40,7 @@ export default function JournalPage() {
         {isError && (
           <div className="flex items-center gap-3 bg-red/10 border border-red/20 rounded-xl p-4">
             <AlertCircle size={18} className="text-red flex-shrink-0" />
-            <p className="text-sm text-red-300">Impossible de charger le journal.</p>
+            <p className="text-sm text-red">Impossible de charger le journal.</p>
           </div>
         )}
 

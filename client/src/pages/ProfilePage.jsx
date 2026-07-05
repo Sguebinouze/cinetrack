@@ -136,7 +136,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-text-dim">{list.items.length} titre{list.items.length !== 1 ? 's' : ''}</span>
                       <button onClick={() => deleteListMutation.mutate(list.id)}>
-                        <Trash2 size={13} className="text-red-400" />
+                        <Trash2 size={13} className="text-red" />
                       </button>
                     </div>
                   </div>

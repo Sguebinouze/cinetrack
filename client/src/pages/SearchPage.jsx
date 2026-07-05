@@ -110,7 +110,7 @@ export default function SearchPage() {
         {isError && (
           <div className="mx-4 mt-4 flex items-center gap-3 bg-red/10 border border-red/20 rounded-xl p-4">
             <AlertCircle size={18} className="text-red flex-shrink-0" />
-            <p className="text-sm text-red-300">Impossible de charger les données. Vérifie ta connexion.</p>
+            <p className="text-sm text-red">Impossible de charger les données. Vérifie ta connexion.</p>
           </div>
         )}
 

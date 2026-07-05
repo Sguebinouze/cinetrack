@@ -53,7 +53,7 @@ export default function StatsPage() {
         {isError && (
           <div className="flex items-center gap-3 bg-red/10 border border-red/20 rounded-xl p-4">
             <AlertCircle size={18} className="text-red flex-shrink-0" />
-            <p className="text-sm text-red-300">Impossible de charger les statistiques.</p>
+            <p className="text-sm text-red">Impossible de charger les statistiques.</p>
           </div>
         )}
 
@@ -91,7 +91,7 @@ export default function StatsPage() {
             {/* Grille stats */}
             <div className="grid grid-cols-2 gap-3">
               <StatCard label="Films vus" value={stats.movies} icon={Film} />
-              <StatCard label="Séries vues" value={stats.series} icon={Tv} color="text-blue-300" />
+              <StatCard label="Séries vues" value={stats.series} icon={Tv} color="text-blue" />
               <StatCard label="Épisodes vus" value={stats.episodesWatched} icon={TrendingUp} color="text-green" />
               <StatCard
                 label="Temps visionné"

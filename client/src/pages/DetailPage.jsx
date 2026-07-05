@@ -192,7 +192,7 @@ export default function DetailPage() {
               onClick={() => setShowDeleteConfirm(true)}
               className="w-9 h-9 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-full"
             >
-              <Trash2 size={16} className="text-red-400" />
+              <Trash2 size={16} className="text-red" />
             </button>
           )}
         </div>
@@ -249,7 +249,7 @@ export default function DetailPage() {
               <button
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                className="flex-1 py-3 rounded-xl bg-red/20 border border-red/30 text-red-400 text-sm font-medium disabled:opacity-50"
+                className="flex-1 py-3 rounded-xl bg-red/20 border border-red/30 text-red text-sm font-medium disabled:opacity-50"
               >
                 {deleteMutation.isPending ? 'Suppression…' : 'Retirer'}
               </button>
