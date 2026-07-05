@@ -1,0 +1,31 @@
+import axios from 'axios'
+
+const api = axios.create({ baseURL: 'http://localhost:3001/api' })
+
+export const tmdbApi = {
+  search: (q, page = 1) => api.get('/tmdb/search', { params: { q, page } }).then(r => r.data),
+  trending: (type = 'all', window = 'week') => api.get('/tmdb/trending', { params: { type, window } }).then(r => r.data),
+  movie: (id) => api.get(`/tmdb/movie/${id}`).then(r => r.data),
+  tv: (id) => api.get(`/tmdb/tv/${id}`).then(r => r.data),
+  tvSeason: (id, season) => api.get(`/tmdb/tv/${id}/season/${season}`).then(r => r.data),
+}
+
+export const watchlistApi = {
+  getAll: (status) => api.get('/watchlist', { params: status ? { status } : {} }).then(r => r.data),
+  add: (tmdbId, mediaType, status) => api.post('/watchlist', { tmdbId, mediaType, status }).then(r => r.data),
+  update: (id, data) => api.patch(`/watchlist/${id}`, data).then(r => r.data),
+  remove: (id) => api.delete(`/watchlist/${id}`).then(r => r.data),
+}
+
+export const episodesApi = {
+  get: (tmdbId) => api.get(`/episodes/${tmdbId}`).then(r => r.data),
+  sync: (tmdbId) => api.post(`/episodes/sync/${tmdbId}`).then(r => r.data),
+  markWatched: (episodeId, watched) => api.patch(`/episodes/${episodeId}/watch`, { watched }).then(r => r.data),
+}
+
+export const statsApi = {
+  get: () => api.get('/stats').then(r => r.data),
+}
+
+export const TMDB_IMAGE = (path, size = 'w500') =>
+  path ? `https://image.tmdb.org/t/p/${size}${path}` : null

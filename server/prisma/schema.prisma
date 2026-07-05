@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Media {
+  id           Int      @id @default(autoincrement())
+  tmdbId       Int      @unique
+  mediaType    String
+  title        String
+  posterPath   String?
+  backdropPath String?
+  overview     String?
+  releaseDate  String?
+  genres       String?
+  runtime      Int?
+  voteAverage  Float?
+  createdAt    DateTime @default(now())
+
+  watchEntry WatchEntry?
+  seasons    Season[]
+}
+
+model WatchEntry {
+  id            Int       @id @default(autoincrement())
+  mediaId       Int       @unique
+  media         Media     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  status        String
+  rating        Float?
+  reviewPrivate String?
+  reviewPublic  String?
+  watchedAt     DateTime?
+  addedAt       DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Season {
+  id           Int       @id @default(autoincrement())
+  mediaId      Int
+  media        Media     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  seasonNumber Int
+  name         String?
+  episodeCount Int?
+  episodes     Episode[]
+
+  @@unique([mediaId, seasonNumber])
+}
+
+model Episode {
+  id            Int       @id @default(autoincrement())
+  seasonId      Int
+  season        Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  episodeNumber Int
+  name          String?
+  airDate       String?
+  watched       Boolean   @default(false)
+  watchedAt     DateTime?
+
+  @@unique([seasonId, episodeNumber])
+}
+
+model WatchLog {
+  id        Int      @id @default(autoincrement())
+  tmdbId    Int
+  mediaType String
+  title     String
+  watchedAt DateTime @default(now())
+  note      String?
+}

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment — NEVER commit
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Build
+client/dist/
+
+# Database
+server/dev.db
+server/dev.db-journal
+server/prisma/migrations/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
