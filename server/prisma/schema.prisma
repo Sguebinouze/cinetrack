@@ -18,10 +18,13 @@ model Media {
   genres       String?
   runtime      Int?
   voteAverage  Float?
+  director     String?
+  isAnime      Boolean  @default(false)
   createdAt    DateTime @default(now())
 
   watchEntry WatchEntry?
   seasons    Season[]
+  listItems  CustomListItem[]
 }
 
 model WatchEntry {
@@ -58,15 +61,25 @@ model Episode {
   airDate       String?
   watched       Boolean   @default(false)
   watchedAt     DateTime?
+  rating        Float?
 
   @@unique([seasonId, episodeNumber])
 }
 
-model WatchLog {
-  id        Int      @id @default(autoincrement())
-  tmdbId    Int
-  mediaType String
-  title     String
-  watchedAt DateTime @default(now())
-  note      String?
+model CustomList {
+  id        Int              @id @default(autoincrement())
+  name      String
+  createdAt DateTime         @default(now())
+  items     CustomListItem[]
+}
+
+model CustomListItem {
+  id      Int        @id @default(autoincrement())
+  listId  Int
+  list    CustomList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  mediaId Int
+  media   Media      @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  addedAt DateTime   @default(now())
+
+  @@unique([listId, mediaId])
 }

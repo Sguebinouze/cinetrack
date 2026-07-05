@@ -45,4 +45,28 @@ async function discover(mediaType, params = {}) {
   return data
 }
 
-module.exports = { search, getMovieDetail, getTvDetail, getTvSeason, getTrending, discover }
+async function getRecommendations(mediaType, tmdbId) {
+  const { data } = await tmdb.get(`/${mediaType}/${tmdbId}/recommendations`)
+  return data.results || []
+}
+
+async function getWatchProviders(mediaType, tmdbId) {
+  const { data } = await tmdb.get(`/${mediaType}/${tmdbId}/watch/providers`)
+  return data.results?.FR || null
+}
+
+async function getAnimeTrending(window = 'week') {
+  const { data } = await tmdb.get('/discover/tv', {
+    params: {
+      with_genres: 16,
+      with_origin_country: 'JP',
+      sort_by: window === 'week' ? 'popularity.desc' : 'popularity.desc',
+    },
+  })
+  return data.results || []
+}
+
+module.exports = {
+  search, getMovieDetail, getTvDetail, getTvSeason, getTrending, discover,
+  getRecommendations, getWatchProviders, getAnimeTrending,
+}

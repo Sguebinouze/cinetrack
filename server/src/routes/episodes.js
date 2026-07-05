@@ -83,4 +83,18 @@ router.patch('/:episodeId/watch', async (req, res) => {
   }
 })
 
+// PATCH /api/episodes/:episodeId/rate — noter un épisode
+router.patch('/:episodeId/rate', async (req, res) => {
+  try {
+    const { rating } = req.body
+    const episode = await prisma.episode.update({
+      where: { id: Number(req.params.episodeId) },
+      data: { rating },
+    })
+    res.json(episode)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 module.exports = router

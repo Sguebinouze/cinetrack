@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Check, Star, Clock, Film, Tv, ChevronDown, ChevronUp, Trash2, AlertCircle, Loader } from 'lucide-react'
-import { tmdbApi, watchlistApi, episodesApi, TMDB_IMAGE } from '../services/api'
+import { ChevronLeft, Check, Star, Clock, Film, Tv, ChevronDown, ChevronUp, Trash2, AlertCircle, Loader, ListPlus } from 'lucide-react'
+import { tmdbApi, watchlistApi, episodesApi, listsApi, TMDB_IMAGE } from '../services/api'
 import StarRating from '../components/StarRating'
 import StatusPicker from '../components/StatusPicker'
+import MediaCard from '../components/MediaCard'
 
 export default function DetailPage() {
   const { type, id } = useParams()
@@ -14,6 +15,7 @@ export default function DetailPage() {
   const [reviewText, setReviewText] = useState('')
   const [expandedSeason, setExpandedSeason] = useState(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showListPicker, setShowListPicker] = useState(false)
 
   const { data: detail, isLoading, isError } = useQuery({
     queryKey: ['detail', type, id],
@@ -30,6 +32,26 @@ export default function DetailPage() {
     queryKey: ['seasons', id],
     queryFn: () => episodesApi.get(id),
     enabled: type === 'tv',
+  })
+
+  const { data: recommendations = [] } = useQuery({
+    queryKey: ['recommendations', type, id],
+    queryFn: () => tmdbApi.recommendations(type, id),
+    enabled: !!detail,
+    staleTime: 1000 * 60 * 10,
+  })
+
+  const { data: watchProviders } = useQuery({
+    queryKey: ['watch-providers', type, id],
+    queryFn: () => tmdbApi.watchProviders(type, id),
+    enabled: !!detail,
+    staleTime: 1000 * 60 * 60,
+  })
+
+  const { data: lists = [] } = useQuery({
+    queryKey: ['lists'],
+    queryFn: listsApi.getAll,
+    enabled: showListPicker,
   })
 
   const entry = watchlist.find(e => e.media.tmdbId === Number(id))
@@ -62,6 +84,19 @@ export default function DetailPage() {
   const episodeMutation = useMutation({
     mutationFn: ({ epId, watched }) => episodesApi.markWatched(epId, watched),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['seasons', id] }),
+  })
+
+  const episodeRatingMutation = useMutation({
+    mutationFn: ({ epId, rating }) => episodesApi.rate(epId, rating),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['seasons', id] }),
+  })
+
+  const addToListMutation = useMutation({
+    mutationFn: async (listId) => {
+      if (!entry) await watchlistApi.add(id, type, 'watchlist')
+      return listsApi.addItem(listId, id)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lists'] }); invalidate(); setShowListPicker(false) },
   })
 
   const handleStatus = (status) => {
@@ -144,16 +179,59 @@ export default function DetailPage() {
           <ChevronLeft size={20} className="text-white" />
         </button>
 
-        {/* Supprimer */}
-        {entry && (
+        {/* Actions */}
+        <div className="absolute top-4 right-4 safe-top flex gap-2">
           <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="absolute top-4 right-4 safe-top w-9 h-9 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-full"
+            onClick={() => setShowListPicker(true)}
+            className="w-9 h-9 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-full"
           >
-            <Trash2 size={16} className="text-red-400" />
+            <ListPlus size={16} className="text-text-primary" />
           </button>
-        )}
+          {entry && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-9 h-9 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-full"
+            >
+              <Trash2 size={16} className="text-red-400" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Sélection de liste personnalisée */}
+      {showListPicker && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
+          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="font-serif text-lg text-text-primary mb-4">Ajouter à une liste</h3>
+            {lists.length === 0 ? (
+              <p className="text-sm text-text-sec mb-4">Aucune liste pour l'instant. Crée-en une depuis ton profil.</p>
+            ) : (
+              <div className="space-y-2 mb-4 max-h-60 overflow-y-auto scrollbar-none">
+                {lists.map(list => {
+                  const alreadyIn = list.items.some(i => i.media.tmdbId === Number(id))
+                  return (
+                    <button
+                      key={list.id}
+                      onClick={() => !alreadyIn && addToListMutation.mutate(list.id)}
+                      disabled={alreadyIn || addToListMutation.isPending}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border bg-card text-left text-sm text-text-primary disabled:opacity-50"
+                    >
+                      <span>{list.name}</span>
+                      {alreadyIn && <Check size={14} className="text-green" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            <button
+              onClick={() => setShowListPicker(false)}
+              className="w-full py-3 rounded-xl border border-border text-text-sec text-sm font-medium"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Confirm suppression */}
       {showDeleteConfirm && (
@@ -219,6 +297,24 @@ export default function DetailPage() {
             {genres.map(g => (
               <span key={g} className="flex-shrink-0 text-xs bg-card border border-border text-text-sec px-3 py-1 rounded-full">{g}</span>
             ))}
+          </div>
+        )}
+
+        {/* Plateformes disponibles */}
+        {(watchProviders?.flatrate?.length > 0) && (
+          <div className="mb-4">
+            <h3 className="text-xs text-text-dim uppercase tracking-widest mb-2">Disponible sur</h3>
+            <div className="flex gap-2 overflow-x-auto scrollbar-none">
+              {watchProviders.flatrate.map(p => (
+                <img
+                  key={p.provider_id}
+                  src={TMDB_IMAGE(p.logo_path, 'w92')}
+                  alt={p.provider_name}
+                  title={p.provider_name}
+                  className="w-10 h-10 rounded-lg flex-shrink-0 border border-border"
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -319,20 +415,30 @@ export default function DetailPage() {
                 {expandedSeason === season.id && (
                   <div className="border-t border-border">
                     {season.episodes.map(ep => (
-                      <button
-                        key={ep.id}
-                        onClick={() => episodeMutation.mutate({ epId: ep.id, watched: !ep.watched })}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-white/5 border-b border-border/40 last:border-0 transition-colors"
-                      >
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${ep.watched ? 'bg-green border-green' : 'border-border'}`}>
-                          {ep.watched && <Check size={11} className="text-bg" strokeWidth={2.5} />}
-                        </div>
-                        <div className="flex-1 min-w-0 text-left">
-                          <span className="text-xs text-text-dim mr-2">E{ep.episodeNumber}</span>
-                          <span className={`text-sm ${ep.watched ? 'text-text-sec line-through' : 'text-text-primary'} truncate`}>{ep.name}</span>
-                        </div>
-                        {ep.airDate && <span className="text-[10px] text-text-dim flex-shrink-0">{ep.airDate?.slice(0, 7)}</span>}
-                      </button>
+                      <div key={ep.id} className="px-4 py-2.5 border-b border-border/40 last:border-0">
+                        <button
+                          onClick={() => episodeMutation.mutate({ epId: ep.id, watched: !ep.watched })}
+                          className="w-full flex items-center gap-3 text-left active:opacity-70 transition-opacity"
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${ep.watched ? 'bg-green border-green' : 'border-border'}`}>
+                            {ep.watched && <Check size={11} className="text-bg" strokeWidth={2.5} />}
+                          </div>
+                          <div className="flex-1 min-w-0 text-left">
+                            <span className="text-xs text-text-dim mr-2">E{ep.episodeNumber}</span>
+                            <span className={`text-sm ${ep.watched ? 'text-text-sec line-through' : 'text-text-primary'} truncate`}>{ep.name}</span>
+                          </div>
+                          {ep.airDate && <span className="text-[10px] text-text-dim flex-shrink-0">{ep.airDate?.slice(0, 7)}</span>}
+                        </button>
+                        {ep.watched && (
+                          <div className="pl-8 mt-1.5">
+                            <StarRating
+                              size={13}
+                              value={ep.rating || 0}
+                              onChange={(rating) => episodeRatingMutation.mutate({ epId: ep.id, rating })}
+                            />
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -357,6 +463,22 @@ export default function DetailPage() {
                   <div className="text-[10px] text-text-sec leading-tight line-clamp-2">{person.name}</div>
                   <div className="text-[9px] text-text-dim leading-tight line-clamp-1 mt-0.5">{person.character}</div>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recommandations */}
+        {recommendations.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-xs text-text-dim uppercase tracking-widest mb-3">Recommandé si tu as aimé</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {recommendations.slice(0, 6).map(item => (
+                <MediaCard
+                  key={item.id}
+                  item={item}
+                  onClick={() => navigate(`/${item.media_type || type}/${item.id}`)}
+                />
               ))}
             </div>
           </div>

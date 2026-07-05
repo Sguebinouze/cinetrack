@@ -1,0 +1,19 @@
+ALTER TABLE Episode ADD COLUMN rating REAL;
+ALTER TABLE Media ADD COLUMN director TEXT;
+ALTER TABLE Media ADD COLUMN isAnime INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS CustomList (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  name      TEXT NOT NULL,
+  createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS CustomListItem (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  listId    INTEGER NOT NULL REFERENCES CustomList(id) ON DELETE CASCADE,
+  mediaId   INTEGER NOT NULL REFERENCES Media(id) ON DELETE CASCADE,
+  addedAt   TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(listId, mediaId)
+);
+
+CREATE INDEX IF NOT EXISTS idx_customlistitem_list ON CustomListItem(listId);

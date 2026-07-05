@@ -28,6 +28,12 @@ router.post('/', async (req, res) => {
       ? await tmdb.getMovieDetail(tmdbId)
       : await tmdb.getTvDetail(tmdbId)
 
+    const director = mediaType === 'movie'
+      ? detail.credits?.crew?.find(c => c.job === 'Director')?.name || null
+      : detail.created_by?.[0]?.name || null
+    const isAnime = (detail.genres || []).some(g => g.name === 'Animation')
+      && (detail.origin_country?.includes('JP') || detail.original_language === 'ja')
+
     const media = await prisma.media.upsert({
       where: { tmdbId: Number(tmdbId) },
       update: {},
@@ -42,6 +48,8 @@ router.post('/', async (req, res) => {
         genres: JSON.stringify((detail.genres || []).map(g => g.name)),
         runtime: detail.runtime || detail.episode_run_time?.[0] || null,
         voteAverage: detail.vote_average,
+        director,
+        isAnime,
       },
     })
 

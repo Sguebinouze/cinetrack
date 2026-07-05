@@ -12,6 +12,7 @@ app.use('/api/tmdb', require('./routes/tmdb'))
 app.use('/api/watchlist', require('./routes/watchlist'))
 app.use('/api/episodes', require('./routes/episodes'))
 app.use('/api/stats', require('./routes/stats'))
+app.use('/api/lists', require('./routes/lists'))
 
 app.get('/api/health', (_, res) => res.json({ ok: true }))
 

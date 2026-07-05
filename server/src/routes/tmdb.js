@@ -49,4 +49,33 @@ router.get('/tv/:id/season/:season', async (req, res) => {
   }
 })
 
+router.get('/anime/trending', async (req, res) => {
+  try {
+    const results = await tmdb.getAnimeTrending(req.query.window)
+    res.json(results)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+router.get('/:mediaType/:id/recommendations', async (req, res) => {
+  try {
+    if (!['movie', 'tv'].includes(req.params.mediaType)) return res.status(400).json({ error: 'Invalid mediaType' })
+    const results = await tmdb.getRecommendations(req.params.mediaType, req.params.id)
+    res.json(results)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+router.get('/:mediaType/:id/watch-providers', async (req, res) => {
+  try {
+    if (!['movie', 'tv'].includes(req.params.mediaType)) return res.status(400).json({ error: 'Invalid mediaType' })
+    const providers = await tmdb.getWatchProviders(req.params.mediaType, req.params.id)
+    res.json(providers)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 module.exports = router
