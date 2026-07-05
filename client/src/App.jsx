@@ -25,8 +25,7 @@ export default function App() {
               <Route path="/watchlist" element={<WatchlistPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/movie/:id" element={<DetailPage />} />
-              <Route path="/tv/:id" element={<DetailPage />} />
+              <Route path="/:type/:id" element={<DetailPage />} />
             </Routes>
           </main>
           <BottomNav />
