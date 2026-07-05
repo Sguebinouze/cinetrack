@@ -209,6 +209,22 @@ app.get('/stats', async (c) => {
   const rated = watched.filter(e => e.rating)
   const avgRating = rated.length ? rated.reduce((s, e) => s + e.rating, 0) / rated.length : 0
 
+  // Activité mensuelle sur 12 mois glissants (basée sur updatedAt)
+  const now = new Date()
+  const monthlyActivity = Array.from({ length: 12 }, (_, i) => {
+    const year = now.getFullYear()
+    const month = now.getMonth() - 11 + i // peut être négatif, Date le gère
+    const d = new Date(year, month, 1)
+    const yStr = d.getFullYear().toString()
+    const mStr = String(d.getMonth() + 1).padStart(2, '0')
+    const label = d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
+    const count = entries.filter(e => {
+      const ua = e.updatedAt || ''
+      return ua.startsWith(`${yStr}-${mStr}`)
+    }).length
+    return { label, count }
+  })
+
   return c.json({
     totalWatched: watched.length,
     movies: movies.length,
@@ -219,7 +235,7 @@ app.get('/stats', async (c) => {
     watching: entries.filter(e => e.status === 'watching').length,
     avgRating,
     topGenres,
-    monthlyActivity: [],
+    monthlyActivity,
   })
 })
 
