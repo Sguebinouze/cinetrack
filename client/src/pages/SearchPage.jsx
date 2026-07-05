@@ -14,14 +14,21 @@ function useDebounce(value, delay = 400) {
   return debounced
 }
 
+const trendingFilters = [
+  { key: 'all', label: 'Tout' },
+  { key: 'movie', label: 'Films' },
+  { key: 'tv', label: 'Séries' },
+]
+
 export default function SearchPage() {
   const [query, setQuery] = useState('')
+  const [trendingFilter, setTrendingFilter] = useState('all')
   const debouncedQuery = useDebounce(query, 400)
   const navigate = useNavigate()
 
   const { data: trending = [], isError: trendingError } = useQuery({
-    queryKey: ['trending'],
-    queryFn: () => tmdbApi.trending('all', 'week'),
+    queryKey: ['trending', trendingFilter],
+    queryFn: () => tmdbApi.trending(trendingFilter, 'week'),
     staleTime: 1000 * 60 * 10,
   })
 
@@ -69,12 +76,29 @@ export default function SearchPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto pb-nav scrollbar-none">
-        {/* Section label */}
+        {/* Section label + filtres tendances */}
         {!showResults && (
-          <div className="flex items-center gap-2 px-4 py-3 text-xs text-text-sec uppercase tracking-widest">
-            <TrendingUp size={13} />
-            <span>Tendances cette semaine</span>
-          </div>
+          <>
+            <div className="flex items-center gap-2 px-4 pt-3 pb-2 text-xs text-text-sec uppercase tracking-widest">
+              <TrendingUp size={13} />
+              <span>Tendances cette semaine</span>
+            </div>
+            <div className="flex gap-2 px-4 pb-3">
+              {trendingFilters.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setTrendingFilter(key)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                    trendingFilter === key
+                      ? 'bg-gold text-bg border-gold'
+                      : 'text-text-sec border-border bg-card'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {showResults && isFetching && (
@@ -92,14 +116,17 @@ export default function SearchPage() {
         {/* Grille */}
         {!isError && displayItems.length > 0 && (
           <div className="grid grid-cols-3 gap-3 px-4 pt-1 pb-2">
-            {displayItems.map(item => (
-              <MediaCard
-                key={item.id}
-                item={item}
-                inWatchlist={watchlistIds.has(item.id)}
-                onClick={() => navigate(`/${item.media_type || 'movie'}/${item.id}`)}
-              />
-            ))}
+            {displayItems.map(item => {
+              const mediaType = item.media_type || (!showResults && trendingFilter !== 'all' ? trendingFilter : 'movie')
+              return (
+                <MediaCard
+                  key={item.id}
+                  item={item}
+                  inWatchlist={watchlistIds.has(item.id)}
+                  onClick={() => navigate(`/${mediaType}/${item.id}`)}
+                />
+              )
+            })}
           </div>
         )}
 
