@@ -6,6 +6,8 @@ import WatchlistPage from './pages/WatchlistPage'
 import StatsPage from './pages/StatsPage'
 import ProfilePage from './pages/ProfilePage'
 import DetailPage from './pages/DetailPage'
+import JournalPage from './pages/JournalPage'
+import WrappedPage from './pages/WrappedPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +27,8 @@ export default function App() {
               <Route path="/watchlist" element={<WatchlistPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/journal" element={<JournalPage />} />
+              <Route path="/wrapped" element={<WrappedPage />} />
               <Route path="/:type/:id" element={<DetailPage />} />
             </Routes>
           </main>

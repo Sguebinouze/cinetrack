@@ -18,6 +18,7 @@ const trendingFilters = [
   { key: 'all', label: 'Tout' },
   { key: 'movie', label: 'Films' },
   { key: 'tv', label: 'Séries' },
+  { key: 'anime', label: 'Anime' },
 ]
 
 export default function SearchPage() {
@@ -28,7 +29,7 @@ export default function SearchPage() {
 
   const { data: trending = [], isError: trendingError } = useQuery({
     queryKey: ['trending', trendingFilter],
-    queryFn: () => tmdbApi.trending(trendingFilter, 'week'),
+    queryFn: () => trendingFilter === 'anime' ? tmdbApi.animeTrending() : tmdbApi.trending(trendingFilter, 'week'),
     staleTime: 1000 * 60 * 10,
   })
 
@@ -117,7 +118,7 @@ export default function SearchPage() {
         {!isError && displayItems.length > 0 && (
           <div className="grid grid-cols-3 gap-3 px-4 pt-1 pb-2">
             {displayItems.map(item => {
-              const mediaType = item.media_type || (!showResults && trendingFilter !== 'all' ? trendingFilter : 'movie')
+              const mediaType = item.media_type || (!showResults && trendingFilter === 'anime' ? 'tv' : !showResults && trendingFilter !== 'all' ? trendingFilter : 'movie')
               return (
                 <MediaCard
                   key={item.id}

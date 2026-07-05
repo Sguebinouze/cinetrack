@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ListVideo, Search, AlertCircle } from 'lucide-react'
-import { watchlistApi } from '../services/api'
+import { ListVideo, Search, AlertCircle, Shuffle, Clock } from 'lucide-react'
+import { watchlistApi, TMDB_IMAGE } from '../services/api'
 import MediaCard from '../components/MediaCard'
+
+const durationOptions = [
+  { key: 90, label: '< 1h30' },
+  { key: 120, label: '< 2h' },
+  { key: null, label: 'Peu importe' },
+]
 
 const filters = [
   { key: null, label: 'Tout' },
@@ -15,6 +21,10 @@ const filters = [
 
 export default function WatchlistPage() {
   const [activeFilter, setActiveFilter] = useState(null)
+  const [showTonight, setShowTonight] = useState(false)
+  const [tonightDuration, setTonightDuration] = useState(null)
+  const [tonightGenre, setTonightGenre] = useState(null)
+  const [tonightPick, setTonightPick] = useState(null)
   const navigate = useNavigate()
 
   const { data: entries = [], isLoading, isError } = useQuery({
@@ -23,15 +33,50 @@ export default function WatchlistPage() {
     staleTime: 1000 * 30,
   })
 
+  const { data: toWatchEntries = [] } = useQuery({
+    queryKey: ['watchlist', 'watchlist'],
+    queryFn: () => watchlistApi.getAll('watchlist'),
+    staleTime: 1000 * 30,
+    enabled: showTonight,
+  })
+
+  const availableGenres = [...new Set(toWatchEntries.flatMap(e => JSON.parse(e.media.genres || '[]')))]
+
+  const tonightCandidates = toWatchEntries.filter(e => {
+    if (tonightDuration && (e.media.runtime || 0) > tonightDuration) return false
+    if (tonightGenre && !JSON.parse(e.media.genres || '[]').includes(tonightGenre)) return false
+    return true
+  })
+
+  const pickRandom = () => {
+    if (tonightCandidates.length === 0) return setTonightPick(null)
+    setTonightPick(tonightCandidates[Math.floor(Math.random() * tonightCandidates.length)])
+  }
+
+  const closeTonight = () => {
+    setShowTonight(false)
+    setTonightPick(null)
+    setTonightDuration(null)
+    setTonightGenre(null)
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="safe-top px-4 pt-4 bg-bg sticky top-0 z-10 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
           <h1 className="font-serif text-xl text-text-primary">Ma liste</h1>
-          <span className="text-xs text-text-sec bg-card px-2.5 py-1 rounded-full border border-border font-variant-numeric tabular-nums">
-            {entries.length} titre{entries.length !== 1 ? 's' : ''}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTonight(true)}
+              className="flex items-center gap-1.5 text-xs text-gold bg-gold/10 border border-gold/30 px-2.5 py-1 rounded-full font-medium"
+            >
+              <Shuffle size={12} /> Quoi ce soir ?
+            </button>
+            <span className="text-xs text-text-sec bg-card px-2.5 py-1 rounded-full border border-border font-variant-numeric tabular-nums">
+              {entries.length} titre{entries.length !== 1 ? 's' : ''}
+            </span>
+          </div>
         </div>
 
         <div className="flex gap-2 overflow-x-auto scrollbar-none pb-3">
@@ -114,6 +159,98 @@ export default function WatchlistPage() {
           </div>
         )}
       </div>
+
+      {/* Quoi ce soir ? */}
+      {showTonight && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
+          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm max-h-[80vh] overflow-y-auto scrollbar-none">
+            <h3 className="font-serif text-lg text-text-primary mb-4">Quoi ce soir ?</h3>
+
+            <p className="text-xs text-text-dim uppercase tracking-widest mb-2">Durée</p>
+            <div className="flex gap-2 mb-4">
+              {durationOptions.map(({ key, label }) => (
+                <button
+                  key={String(key)}
+                  onClick={() => setTonightDuration(key)}
+                  className={`flex-1 py-2 rounded-xl border text-xs font-medium ${
+                    tonightDuration === key ? 'bg-gold text-bg border-gold' : 'text-text-sec border-border bg-card'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {availableGenres.length > 0 && (
+              <>
+                <p className="text-xs text-text-dim uppercase tracking-widest mb-2">Genre</p>
+                <div className="flex gap-2 flex-wrap mb-4">
+                  <button
+                    onClick={() => setTonightGenre(null)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                      !tonightGenre ? 'bg-gold text-bg border-gold' : 'text-text-sec border-border bg-card'
+                    }`}
+                  >
+                    Tous
+                  </button>
+                  {availableGenres.map(g => (
+                    <button
+                      key={g}
+                      onClick={() => setTonightGenre(g)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                        tonightGenre === g ? 'bg-gold text-bg border-gold' : 'text-text-sec border-border bg-card'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <p className="text-xs text-text-dim mb-4">{tonightCandidates.length} titre{tonightCandidates.length !== 1 ? 's' : ''} correspondent</p>
+
+            {tonightPick && (
+              <div className="flex items-center gap-3 bg-card border border-gold/30 rounded-xl p-3 mb-4">
+                {tonightPick.media.posterPath && (
+                  <img src={TMDB_IMAGE(tonightPick.media.posterPath, 'w185')} alt={tonightPick.media.title} className="w-12 h-[72px] object-cover rounded-lg" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-text-primary font-medium truncate">{tonightPick.media.title}</p>
+                  {tonightPick.media.runtime && (
+                    <p className="text-xs text-text-dim flex items-center gap-1 mt-0.5"><Clock size={10} />{tonightPick.media.runtime} min</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeTonight}
+                className="flex-1 py-3 rounded-xl border border-border text-text-sec text-sm font-medium"
+              >
+                Fermer
+              </button>
+              {tonightPick ? (
+                <button
+                  onClick={() => navigate(`/${tonightPick.media.mediaType}/${tonightPick.media.tmdbId}`)}
+                  className="flex-1 py-3 rounded-xl bg-gold text-bg text-sm font-medium"
+                >
+                  Regarder
+                </button>
+              ) : (
+                <button
+                  onClick={pickRandom}
+                  disabled={tonightCandidates.length === 0}
+                  className="flex-1 py-3 rounded-xl bg-gold text-bg text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Shuffle size={14} /> Tirer au sort
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

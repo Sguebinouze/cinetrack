@@ -26,8 +26,24 @@ export default function StatsPage() {
   const maxBar = stats ? Math.max(...(stats.monthlyActivity || []).map(m => m.count), 1) : 1
   const isEmpty = stats && stats.totalWatched === 0 && stats.watchlist === 0 && stats.watching === 0
 
+  const heatmapWeeks = []
+  if (stats?.dailyActivity) {
+    for (let i = 0; i < stats.dailyActivity.length; i += 7) {
+      heatmapWeeks.push(stats.dailyActivity.slice(i, i + 7))
+    }
+  }
+  const maxDaily = stats ? Math.max(...(stats.dailyActivity || []).map(d => d.count), 1) : 1
+  const heatColor = (count) => {
+    if (count === 0) return 'bg-white/5'
+    const ratio = count / maxDaily
+    if (ratio > 0.75) return 'bg-gold'
+    if (ratio > 0.5) return 'bg-gold/70'
+    if (ratio > 0.25) return 'bg-gold/45'
+    return 'bg-gold/20'
+  }
+
   return (
-    <div className="flex flex-col min-h-full pb-nav">
+    <div className="flex flex-col h-full overflow-y-auto scrollbar-none pb-nav">
       <div className="safe-top px-4 pt-4 pb-3 border-b border-border/50">
         <h1 className="font-serif text-xl text-text-primary">Statistiques</h1>
       </div>
@@ -146,6 +162,28 @@ export default function StatsPage() {
                         </div>
                       )
                     })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Heatmap d'activité (90 derniers jours) */}
+            {heatmapWeeks.length > 0 && (
+              <div>
+                <h2 className="text-xs text-text-dim uppercase tracking-widest mb-4">Activité — 90 derniers jours</h2>
+                <div className="bg-card border border-border rounded-2xl p-4 overflow-x-auto scrollbar-none">
+                  <div className="flex gap-1 w-max">
+                    {heatmapWeeks.map((week, wi) => (
+                      <div key={wi} className="flex flex-col gap-1">
+                        {week.map(day => (
+                          <div
+                            key={day.date}
+                            title={`${day.date} · ${day.count} activité${day.count !== 1 ? 's' : ''}`}
+                            className={`w-3 h-3 rounded-sm ${heatColor(day.count)}`}
+                          />
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

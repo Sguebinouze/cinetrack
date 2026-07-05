@@ -1,12 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
-import { Film, Tv, Clock, Star, Award } from 'lucide-react'
-import { statsApi } from '../services/api'
-import { watchlistApi } from '../services/api'
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Film, Tv, Clock, Star, Award, Trash2, Plus, BookOpen, Sparkles, ChevronRight } from 'lucide-react'
+import { statsApi, watchlistApi, listsApi } from '../services/api'
 import { useNavigate } from 'react-router-dom'
 import MediaCard from '../components/MediaCard'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const [newListName, setNewListName] = useState('')
+  const [showNewList, setShowNewList] = useState(false)
 
   const { data: stats } = useQuery({
     queryKey: ['stats'],
@@ -20,11 +23,30 @@ export default function ProfilePage() {
     staleTime: 1000 * 30,
   })
 
+  const { data: lists = [] } = useQuery({
+    queryKey: ['lists'],
+    queryFn: listsApi.getAll,
+  })
+
+  const createListMutation = useMutation({
+    mutationFn: (name) => listsApi.create(name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lists'] })
+      setNewListName('')
+      setShowNewList(false)
+    },
+  })
+
+  const deleteListMutation = useMutation({
+    mutationFn: (id) => listsApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['lists'] }),
+  })
+
   const hours = stats ? Math.floor(stats.minutesWatched / 60) : 0
   const topRecent = recent.slice(0, 6)
 
   return (
-    <div className="flex flex-col min-h-full pb-nav">
+    <div className="flex flex-col h-full overflow-y-auto scrollbar-none pb-nav">
       {/* Header hero */}
       <div className="safe-top bg-surface border-b border-border px-4 pt-6 pb-6">
         <div className="flex items-center gap-4 mb-5">
@@ -55,6 +77,88 @@ export default function ProfilePage() {
       </div>
 
       <div className="px-4 pt-5 space-y-6">
+        {/* Navigation vers Journal / Wrapped */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate('/journal')}
+            className="flex items-center gap-2 bg-card border border-border rounded-xl p-3 text-left active:opacity-70"
+          >
+            <BookOpen size={18} className="text-gold flex-shrink-0" strokeWidth={1.5} />
+            <span className="text-sm text-text-primary font-medium">Journal</span>
+            <ChevronRight size={14} className="text-text-dim ml-auto" />
+          </button>
+          <button
+            onClick={() => navigate('/wrapped')}
+            className="flex items-center gap-2 bg-card border border-border rounded-xl p-3 text-left active:opacity-70"
+          >
+            <Sparkles size={18} className="text-gold flex-shrink-0" strokeWidth={1.5} />
+            <span className="text-sm text-text-primary font-medium">Bilan annuel</span>
+            <ChevronRight size={14} className="text-text-dim ml-auto" />
+          </button>
+        </div>
+
+        {/* Mes listes personnalisées */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs text-text-dim uppercase tracking-widest">Mes listes</h2>
+            <button onClick={() => setShowNewList(v => !v)} className="text-xs text-gold flex items-center gap-1">
+              <Plus size={13} /> Nouvelle liste
+            </button>
+          </div>
+
+          {showNewList && (
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={newListName}
+                onChange={e => setNewListName(e.target.value)}
+                placeholder="Ex : À regarder en avion"
+                className="flex-1 bg-card border border-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-text-dim outline-none focus:border-gold/50"
+              />
+              <button
+                onClick={() => newListName.trim() && createListMutation.mutate(newListName)}
+                disabled={createListMutation.isPending || !newListName.trim()}
+                className="px-4 py-2 rounded-xl bg-gold text-bg text-sm font-medium disabled:opacity-50"
+              >
+                Créer
+              </button>
+            </div>
+          )}
+
+          {lists.length === 0 ? (
+            <p className="text-xs text-text-dim">Aucune liste personnalisée. Crée-en une pour organiser tes envies.</p>
+          ) : (
+            <div className="space-y-2">
+              {lists.map(list => (
+                <div key={list.id} className="bg-card border border-border rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-text-primary">{list.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-text-dim">{list.items.length} titre{list.items.length !== 1 ? 's' : ''}</span>
+                      <button onClick={() => deleteListMutation.mutate(list.id)}>
+                        <Trash2 size={13} className="text-red-400" />
+                      </button>
+                    </div>
+                  </div>
+                  {list.items.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto scrollbar-none">
+                      {list.items.map(item => (
+                        <img
+                          key={item.id}
+                          src={item.media.posterPath ? `https://image.tmdb.org/t/p/w185${item.media.posterPath}` : undefined}
+                          alt={item.media.title}
+                          onClick={() => navigate(`/${item.media.mediaType}/${item.media.tmdbId}`)}
+                          className="w-12 h-[72px] object-cover rounded-lg flex-shrink-0 bg-bg cursor-pointer"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Top genres */}
         {stats?.topGenres?.length > 0 && (
           <div>
@@ -70,6 +174,20 @@ export default function ProfilePage() {
                   }`}
                 >
                   {g.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top réalisateurs */}
+        {stats?.topDirectors?.length > 0 && (
+          <div>
+            <h2 className="text-xs text-text-dim uppercase tracking-widest mb-3">Réalisateurs favoris</h2>
+            <div className="flex gap-2 flex-wrap">
+              {stats.topDirectors.map(d => (
+                <span key={d.name} className="px-3 py-1.5 rounded-full text-sm border bg-card border-border text-text-sec">
+                  {d.name}
                 </span>
               ))}
             </div>
