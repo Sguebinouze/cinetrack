@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage'
 import DetailPage from './pages/DetailPage'
 import JournalPage from './pages/JournalPage'
 import WrappedPage from './pages/WrappedPage'
+import UpdateNotification from './components/UpdateNotification'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ export default function App() {
             </Routes>
           </main>
           <BottomNav />
+          <UpdateNotification />
         </div>
       </BrowserRouter>
     </PersistQueryClientProvider>

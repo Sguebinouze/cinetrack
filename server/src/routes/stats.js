@@ -154,12 +154,20 @@ router.get('/wrapped', async (req, res) => {
     for (const e of yearEntries) {
       for (const g of JSON.parse(e.media.genres || '[]')) genreCount[g] = (genreCount[g] || 0) + 1
     }
-    const topGenre = Object.entries(genreCount).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+    const topGenres = Object.entries(genreCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, count]) => ({ name, count }))
 
     const rated = yearEntries.filter(e => e.rating)
     const topRated = [...rated].sort((a, b) => b.rating - a.rating)[0]
 
     const uniqueSeriesTitles = new Set(yearEpisodes.map(ep => ep.season.media.title))
+
+    const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+    const monthlyBreakdown = monthNames.map((label, i) => {
+      const count = yearEntries.filter(e => (e.watchedAt || e.updatedAt).getMonth() === i).length
+        + yearEpisodes.filter(ep => ep.watchedAt.getMonth() === i).length
+      return { label, count }
+    })
+    const topMonth = monthlyBreakdown.reduce((best, m) => (m.count > best.count ? m : best), monthlyBreakdown[0])
 
     res.json({
       year,
@@ -168,8 +176,11 @@ router.get('/wrapped', async (req, res) => {
       episodesWatched: yearEpisodes.length,
       distinctSeries: uniqueSeriesTitles.size,
       minutesWatched: movieMinutes + tvMinutes,
-      topGenre,
+      topGenres,
+      topGenre: topGenres[0]?.name || null,
       topRated: topRated ? { title: topRated.media.title, rating: topRated.rating, posterPath: topRated.media.posterPath } : null,
+      monthlyBreakdown,
+      topMonth: topMonth.count > 0 ? topMonth : null,
     })
   } catch (e) {
     res.status(500).json({ error: e.message })

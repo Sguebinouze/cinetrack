@@ -379,46 +379,103 @@ app.get('/stats/journal', async (c) => {
 })
 
 app.get('/stats/wrapped', async (c) => {
-  const year = Number(c.req.query('year')) || new Date().getFullYear()
+  const year = String(Number(c.req.query('year')) || new Date().getFullYear())
+  const db = c.env.DB
 
-  const { results: entries } = await c.env.DB.prepare(`
-    SELECT w.rating, w.watchedAt, w.updatedAt, m.mediaType, m.runtime, m.genres, m.title, m.posterPath
-    FROM WatchEntry w JOIN Media m ON w.mediaId = m.id WHERE w.status = 'watched'
-  `).all()
+  // Temps + volume : films watched dans l'année + épisodes vus dans l'année,
+  // agrégés directement en SQL (SUM/COUNT côté D1, pas de rapatriement de lignes).
+  const totalsQuery = db.prepare(`
+    SELECT
+      COUNT(CASE WHEN m.mediaType = 'movie' THEN 1 END) AS moviesWatched,
+      COUNT(CASE WHEN m.mediaType = 'tv' THEN 1 END) AS seriesWatched,
+      COALESCE(SUM(CASE WHEN m.mediaType = 'movie' THEN m.runtime ELSE 0 END), 0) AS movieMinutes
+    FROM WatchEntry w
+    JOIN Media m ON w.mediaId = m.id
+    WHERE w.status = 'watched'
+      AND strftime('%Y', COALESCE(w.watchedAt, w.updatedAt)) = ?
+  `).bind(year)
 
-  const { results: episodes } = await c.env.DB.prepare(`
-    SELECT e.watchedAt, m.title FROM Episode e JOIN Season s ON e.seasonId = s.id JOIN Media m ON s.mediaId = m.id WHERE e.watched = 1
-  `).all()
+  // Épisodes vus + nombre de séries distinctes touchées cette année — basé
+  // sur l'activité épisode par épisode, indépendamment du statut de la fiche
+  // (une série "en cours" compte si des épisodes ont été vus dans l'année).
+  const episodesQuery = db.prepare(`
+    SELECT COUNT(*) AS episodesWatched, COUNT(DISTINCT s.mediaId) AS distinctSeries
+    FROM Episode e
+    JOIN Season s ON e.seasonId = s.id
+    WHERE e.watched = 1 AND strftime('%Y', e.watchedAt) = ?
+  `).bind(year)
 
-  const inYear = (d) => d && new Date(d).getFullYear() === year
-  const yearEntries = entries.filter(e => inYear(e.watchedAt || e.updatedAt))
-  const yearEpisodes = episodes.filter(ep => inYear(ep.watchedAt))
+  // Top 3 genres : json_each() explose le tableau JSON stocké dans Media.genres
+  // directement en SQL — pas besoin d'une table de jonction ni de JSON.parse() en JS.
+  const topGenresQuery = db.prepare(`
+    SELECT je.value AS name, COUNT(*) AS count
+    FROM WatchEntry w
+    JOIN Media m ON w.mediaId = m.id
+    JOIN json_each(m.genres) je
+    WHERE w.status = 'watched' AND strftime('%Y', COALESCE(w.watchedAt, w.updatedAt)) = ?
+    GROUP BY je.value
+    ORDER BY count DESC
+    LIMIT 3
+  `).bind(year)
 
-  const movies = yearEntries.filter(e => e.mediaType === 'movie')
-  const series = yearEntries.filter(e => e.mediaType === 'tv')
-  const movieMinutes = movies.reduce((a, e) => a + (e.runtime || 0), 0)
-  const tvMinutes = yearEpisodes.length * 40
+  // Titre le mieux noté de l'année
+  const topRatedQuery = db.prepare(`
+    SELECT m.title, w.rating, m.posterPath
+    FROM WatchEntry w JOIN Media m ON w.mediaId = m.id
+    WHERE w.status = 'watched' AND w.rating IS NOT NULL
+      AND strftime('%Y', COALESCE(w.watchedAt, w.updatedAt)) = ?
+    ORDER BY w.rating DESC
+    LIMIT 1
+  `).bind(year)
 
-  const genreCount = {}
-  for (const e of yearEntries) {
-    for (const g of JSON.parse(e.genres || '[]')) genreCount[g] = (genreCount[g] || 0) + 1
-  }
-  const topGenre = Object.entries(genreCount).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+  // Répartition mensuelle (films/séries watched + épisodes vus, unifiés) pour le graphique
+  const monthlyQuery = db.prepare(`
+    SELECT month, SUM(count) AS count FROM (
+      SELECT strftime('%m', COALESCE(w.watchedAt, w.updatedAt)) AS month, COUNT(*) AS count
+      FROM WatchEntry w
+      WHERE w.status = 'watched' AND strftime('%Y', COALESCE(w.watchedAt, w.updatedAt)) = ?
+      GROUP BY month
+      UNION ALL
+      SELECT strftime('%m', e.watchedAt) AS month, COUNT(*) AS count
+      FROM Episode e
+      WHERE e.watched = 1 AND strftime('%Y', e.watchedAt) = ?
+      GROUP BY month
+    )
+    GROUP BY month
+    ORDER BY month
+  `).bind(year, year)
 
-  const rated = yearEntries.filter(e => e.rating)
-  const topRated = [...rated].sort((a, b) => b.rating - a.rating)[0]
+  const [totals, episodesRow, topGenres, topRatedRow, monthlyRows] = await Promise.all([
+    totalsQuery.first(),
+    episodesQuery.first(),
+    topGenresQuery.all().then(r => r.results),
+    topRatedQuery.first(),
+    monthlyQuery.all().then(r => r.results),
+  ])
 
-  const distinctSeries = new Set(yearEpisodes.map(ep => ep.title))
+  // Comble les mois sans activité (0) pour un graphique linéaire à 12 points fixes
+  const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+  const monthlyMap = Object.fromEntries(monthlyRows.map(r => [r.month, r.count]))
+  const monthlyBreakdown = monthNames.map((label, i) => ({
+    label,
+    count: monthlyMap[String(i + 1).padStart(2, '0')] || 0,
+  }))
+  const topMonth = monthlyBreakdown.reduce((best, m) => (m.count > best.count ? m : best), monthlyBreakdown[0])
+
+  const minutesWatched = totals.movieMinutes + episodesRow.episodesWatched * 40
 
   return c.json({
-    year,
-    moviesWatched: movies.length,
-    seriesWatched: series.length,
-    episodesWatched: yearEpisodes.length,
-    distinctSeries: distinctSeries.size,
-    minutesWatched: movieMinutes + tvMinutes,
-    topGenre,
-    topRated: topRated ? { title: topRated.title, rating: topRated.rating, posterPath: topRated.posterPath } : null,
+    year: Number(year),
+    moviesWatched: totals.moviesWatched,
+    seriesWatched: totals.seriesWatched,
+    distinctSeries: episodesRow.distinctSeries,
+    episodesWatched: episodesRow.episodesWatched,
+    minutesWatched,
+    topGenres,
+    topGenre: topGenres[0]?.name || null,
+    topRated: topRatedRow ? { title: topRatedRow.title, rating: topRatedRow.rating, posterPath: topRatedRow.posterPath } : null,
+    monthlyBreakdown,
+    topMonth: topMonth.count > 0 ? topMonth : null,
   })
 })
 

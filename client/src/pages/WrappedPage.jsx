@@ -78,10 +78,51 @@ export default function WrappedPage() {
               </div>
             </div>
 
-            {data.topGenre && (
+            {data.topGenres?.length > 0 && (
               <div className="text-center pt-2 border-t border-gold/10">
-                <p className="text-xs text-text-dim mb-1">Ton genre de l'année</p>
-                <p className="text-lg font-serif text-gold">{data.topGenre}</p>
+                <p className="text-xs text-text-dim mb-2">Tes genres de l'année</p>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {data.topGenres.map((g, i) => (
+                    <span
+                      key={g.name}
+                      className={`px-3 py-1 rounded-full text-sm border ${
+                        i === 0 ? 'bg-gold/15 border-gold/30 text-gold font-medium' : 'bg-card border-border text-text-sec'
+                      }`}
+                    >
+                      {g.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {data.topMonth && (
+              <div className="text-center pt-2 border-t border-gold/10">
+                <p className="text-xs text-text-dim mb-1">Ton mois le plus cinéphile</p>
+                <p className="text-lg font-serif text-gold">{data.topMonth.label} — {data.topMonth.count} visionnage{data.topMonth.count > 1 ? 's' : ''}</p>
+              </div>
+            )}
+
+            {data.monthlyBreakdown?.some(m => m.count > 0) && (
+              <div className="pt-2 border-t border-gold/10">
+                <p className="text-xs text-text-dim mb-3 text-center">Répartition sur l'année</p>
+                <div className="flex items-end gap-1 h-16">
+                  {data.monthlyBreakdown.map(m => {
+                    const max = Math.max(...data.monthlyBreakdown.map(x => x.count), 1)
+                    const height = Math.max((m.count / max) * 56, m.count > 0 ? 4 : 0)
+                    return (
+                      <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
+                        <div className="w-full flex items-end" style={{ height: '56px' }}>
+                          <div
+                            className={`w-full rounded-t ${m.label === data.topMonth?.label ? 'bg-gold' : 'bg-gold/30'}`}
+                            style={{ height: `${height}px` }}
+                          />
+                        </div>
+                        <span className="text-[8px] text-text-dim">{m.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
 

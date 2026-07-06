@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' : le SW installe la nouvelle version en arrière-plan mais
+      // n'active PAS automatiquement — on laisse le composant UpdateNotification
+      // demander confirmation à l'utilisateur (onNeedRefresh) avant de recharger.
+      registerType: 'prompt',
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
 
