@@ -300,21 +300,44 @@ export default function DetailPage() {
           </div>
         )}
 
-        {/* Plateformes disponibles */}
-        {(watchProviders?.flatrate?.length > 0) && (
-          <div className="mb-4">
-            <h3 className="text-xs text-text-dim uppercase tracking-widest mb-2">Disponible sur</h3>
-            <div className="flex gap-2 overflow-x-auto scrollbar-none">
-              {watchProviders.flatrate.map(p => (
-                <img
-                  key={p.provider_id}
-                  src={TMDB_IMAGE(p.logo_path, 'w92')}
-                  alt={p.provider_name}
-                  title={p.provider_name}
-                  className="w-10 h-10 rounded-lg flex-shrink-0 border border-border"
-                />
-              ))}
-            </div>
+        {/* Plateformes disponibles (France) */}
+        {watchProviders && (watchProviders.flatrate?.length > 0 || watchProviders.ads?.length > 0 || watchProviders.buy?.length > 0 || watchProviders.rent?.length > 0) && (
+          <div className="mb-4 space-y-3">
+            {(watchProviders.flatrate?.length > 0 || watchProviders.ads?.length > 0) && (
+              <div>
+                <h3 className="text-xs text-text-dim uppercase tracking-widest mb-2">En streaming</h3>
+                <div className="flex gap-2 overflow-x-auto scrollbar-none">
+                  {[...(watchProviders.flatrate || []), ...(watchProviders.ads || [])].map(p => (
+                    <img
+                      key={p.provider_id}
+                      src={TMDB_IMAGE(p.logo_path, 'w92')}
+                      alt={p.provider_name}
+                      title={p.provider_name}
+                      className="w-10 h-10 rounded-lg flex-shrink-0 border border-border"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(watchProviders.buy?.length > 0 || watchProviders.rent?.length > 0) && (
+              <div>
+                <h3 className="text-xs text-text-dim uppercase tracking-widest mb-2">Achat / location</h3>
+                <div className="flex gap-2 overflow-x-auto scrollbar-none">
+                  {Array.from(
+                    new Map([...(watchProviders.buy || []), ...(watchProviders.rent || [])].map(p => [p.provider_id, p])).values()
+                  ).map(p => (
+                    <img
+                      key={p.provider_id}
+                      src={TMDB_IMAGE(p.logo_path, 'w92')}
+                      alt={p.provider_name}
+                      title={p.provider_name}
+                      className="w-10 h-10 rounded-lg flex-shrink-0 border border-border opacity-80"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -5,6 +5,13 @@ const app = new Hono().basePath('/api')
 
 app.use('*', cors({ origin: '*' }))
 
+// Mots-clés TMDB à exclure systématiquement (contenu pornographique / hentai).
+// TMDB ne marque pas toujours ce contenu comme `adult: true` de façon fiable
+// (particulièrement les OAV hentai côté anime), d'où l'exclusion explicite
+// par mot-clé en complément de `include_adult: false`.
+const EXCLUDED_KEYWORDS = '198385,195669,281741,329280,325693,256466,161919,155477,267122' // hentai, ecchi, nudity, sexual content, erotica, erotic, adult animation, softcore, sex
+const excludeAdult = (results) => (results || []).filter(r => !r.adult)
+
 // ── TMDB proxy ────────────────────────────────────────────
 const tmdb = (env) => ({
   get: async (path, params = {}) => {
@@ -21,14 +28,14 @@ app.get('/tmdb/search', async (c) => {
   const q = c.req.query('q')
   if (!q) return c.json({ error: 'Query required' }, 400)
   const data = await tmdb(c.env).get('/search/multi', { query: q, include_adult: false })
-  return c.json((data.results || []).filter(r => r.media_type === 'movie' || r.media_type === 'tv'))
+  return c.json(excludeAdult(data.results).filter(r => r.media_type === 'movie' || r.media_type === 'tv'))
 })
 
 app.get('/tmdb/trending', async (c) => {
   const type = c.req.query('type') || 'all'
   const window = c.req.query('window') || 'week'
   const data = await tmdb(c.env).get(`/trending/${type}/${window}`)
-  return c.json(data.results || [])
+  return c.json(excludeAdult(data.results))
 })
 
 app.get('/tmdb/discover/:mediaType', async (c) => {
@@ -36,11 +43,11 @@ app.get('/tmdb/discover/:mediaType', async (c) => {
   if (!['movie', 'tv'].includes(mediaType)) return c.json({ error: 'Invalid mediaType' }, 400)
   const genre = c.req.query('genre')
   const maxRuntime = c.req.query('maxRuntime')
-  const params = { sort_by: 'popularity.desc', 'vote_count.gte': 50 }
+  const params = { sort_by: 'popularity.desc', 'vote_count.gte': 50, include_adult: false, without_keywords: EXCLUDED_KEYWORDS }
   if (genre) params.with_genres = genre
   if (maxRuntime) params['with_runtime.lte'] = maxRuntime
   const data = await tmdb(c.env).get(`/discover/${mediaType}`, params)
-  return c.json(data.results || [])
+  return c.json(excludeAdult(data.results))
 })
 
 app.get('/tmdb/anime/trending', async (c) => {
@@ -48,8 +55,10 @@ app.get('/tmdb/anime/trending', async (c) => {
     with_genres: 16,
     with_origin_country: 'JP',
     sort_by: 'popularity.desc',
+    include_adult: false,
+    without_keywords: EXCLUDED_KEYWORDS,
   })
-  return c.json(data.results || [])
+  return c.json(excludeAdult(data.results))
 })
 
 app.get('/tmdb/movie/:id', async (c) => {
@@ -71,7 +80,7 @@ app.get('/tmdb/:mediaType/:id/recommendations', async (c) => {
   const { mediaType, id } = c.req.param()
   if (!['movie', 'tv'].includes(mediaType)) return c.json({ error: 'Invalid mediaType' }, 400)
   const data = await tmdb(c.env).get(`/${mediaType}/${id}/recommendations`)
-  return c.json(data.results || [])
+  return c.json(excludeAdult(data.results))
 })
 
 app.get('/tmdb/:mediaType/:id/watch-providers', async (c) => {
