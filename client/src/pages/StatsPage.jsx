@@ -143,12 +143,17 @@ export default function StatsPage() {
               <div>
                 <h2 className="text-xs text-text-dim uppercase tracking-widest mb-4">Activité — 12 derniers mois</h2>
                 <div className="bg-card border border-border rounded-2xl p-4">
-                  <div className="flex items-end gap-1 h-24">
+                  <div className="flex items-end gap-1.5 h-24">
                     {stats.monthlyActivity.map(({ label, count }, i) => {
                       const isLast = i === stats.monthlyActivity.length - 1
+                      const isFirst = i === 0
                       const height = maxBar > 0 ? Math.max((count / maxBar) * 80, count > 0 ? 4 : 0) : 0
+                      const [month, year] = label.split(' ')
+                      // N'affiche le mois en clair qu'un mois sur deux (+ toujours le dernier)
+                      // pour éviter la surcharge de 12 libellés collés sur mobile.
+                      const showLabel = i % 2 === 0 || isLast
                       return (
-                        <div key={label} className="flex-1 flex flex-col items-center gap-1.5">
+                        <div key={label} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
                           <div className="w-full flex items-end justify-center" style={{ height: '80px' }}>
                             <div
                               className={`w-full rounded-t transition-all duration-500 ${isLast ? 'bg-gold' : 'bg-gold/30'}`}
@@ -158,7 +163,14 @@ export default function StatsPage() {
                           {count > 0 && (
                             <span className="text-[8px] text-gold font-variant-numeric tabular-nums">{count}</span>
                           )}
-                          <span className={`text-[8px] ${isLast ? 'text-text-sec' : 'text-text-dim'}`}>{label}</span>
+                          {showLabel ? (
+                            <span className={`text-[9px] leading-tight ${isLast ? 'text-text-sec font-medium' : 'text-text-dim'}`}>
+                              {month}
+                              {(isFirst || isLast) && <><br />{year}</>}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] leading-tight opacity-0 select-none">·</span>
+                          )}
                         </div>
                       )
                     })}

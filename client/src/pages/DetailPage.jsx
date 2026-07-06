@@ -200,7 +200,7 @@ export default function DetailPage() {
 
       {/* Sélection de liste personnalisée */}
       {showListPicker && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm">
             <h3 className="font-serif text-lg text-text-primary mb-4">Ajouter à une liste</h3>
             {lists.length === 0 ? (
@@ -235,7 +235,7 @@ export default function DetailPage() {
 
       {/* Confirm suppression */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm">
             <h3 className="font-serif text-lg text-text-primary mb-2">Retirer de la liste ?</h3>
             <p className="text-sm text-text-sec mb-5">Ta note et ton avis seront aussi supprimés.</p>

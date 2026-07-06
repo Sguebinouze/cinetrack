@@ -162,7 +162,7 @@ export default function WatchlistPage() {
 
       {/* Quoi ce soir ? */}
       {showTonight && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm max-h-[80vh] overflow-y-auto scrollbar-none">
             <h3 className="font-serif text-lg text-text-primary mb-4">Quoi ce soir ?</h3>
 
