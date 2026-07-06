@@ -14,8 +14,13 @@ import WrappedPage from './pages/WrappedPage'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      // retry: false — un retry automatique pouvait laisser une requête en échec
+      // bloquée indéfiniment en fetchStatus 'paused' (jamais 'error'), affichant
+      // une page vide au lieu du message d'erreur. Un échec direct est plus fiable
+      // qu'un retry silencieux pour cette app.
+      retry: false,
       refetchOnWindowFocus: false,
+      networkMode: 'always',
       // Les données restent affichables 24h avant d'être jugées "obsolètes" —
       // au-delà, react-query retente un fetch réseau dès qu'il est disponible,
       // mais continue d'afficher la version en cache pendant ce temps (pas d'écran vide).

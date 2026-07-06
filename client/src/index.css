@@ -33,6 +33,14 @@
 
   p { margin: 0; }
 
+  /* On gère nous-même le bouton d'effacement (input type="search") pour éviter
+     un doublon avec la croix native du navigateur */
+  input[type='search']::-webkit-search-cancel-button,
+  input[type='search']::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   button, a, input, textarea {
     transition-property: color, background-color, border-color, opacity, transform;
     transition-duration: 150ms;
