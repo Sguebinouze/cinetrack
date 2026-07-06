@@ -405,11 +405,22 @@ export default function DetailPage() {
                     className="text-xs text-gold font-medium disabled:opacity-50 flex items-center gap-1"
                   >
                     {syncMutation.isPending && <Loader size={11} className="animate-spin" />}
-                    {syncMutation.isPending ? 'Chargement…' : 'Synchroniser'}
+                    {syncMutation.isPending ? 'Synchronisation…' : 'Synchroniser'}
                   </button>
                 : <span className="text-xs text-text-sec font-variant-numeric tabular-nums">{watchedEpisodes}/{totalEpisodes} vus</span>
               }
             </div>
+
+            {syncMutation.isPending && (
+              <p className="text-[11px] text-text-dim mb-3 -mt-2">Ça peut prendre quelques secondes pour les séries à nombreuses saisons…</p>
+            )}
+
+            {syncMutation.isError && (
+              <div className="flex items-center gap-2 bg-red/10 border border-red/20 rounded-lg px-3 py-2 mb-3 -mt-2">
+                <AlertCircle size={13} className="text-red flex-shrink-0" />
+                <p className="text-xs text-red">Échec de la synchronisation. <button onClick={() => syncMutation.mutate()} className="underline underline-offset-2">Réessayer</button></p>
+              </div>
+            )}
 
             {totalEpisodes > 0 && (
               <div className="h-1 bg-card rounded-full mb-4 overflow-hidden">

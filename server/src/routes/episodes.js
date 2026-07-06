@@ -9,9 +9,16 @@ router.post('/sync/:tmdbId', async (req, res) => {
     if (!media) return res.status(404).json({ error: 'Media not found' })
 
     const tvDetail = await tmdb.getTvDetail(req.params.tmdbId)
+    const seasonsToSync = (tvDetail.seasons || []).filter(s => s.season_number !== 0)
 
-    for (const s of tvDetail.seasons) {
-      if (s.season_number === 0) continue // skip "Specials"
+    // Récupère toutes les saisons EN PARALLÈLE — un fetch séquentiel par saison
+    // pouvait prendre 20-30s+ pour une série à nombreuses saisons (ex. Les Simpson).
+    const seasonDataList = await Promise.all(
+      seasonsToSync.map(s => tmdb.getTvSeason(req.params.tmdbId, s.season_number))
+    )
+
+    for (let i = 0; i < seasonsToSync.length; i++) {
+      const s = seasonsToSync[i]
       const season = await prisma.season.upsert({
         where: { mediaId_seasonNumber: { mediaId: media.id, seasonNumber: s.season_number } },
         update: { episodeCount: s.episode_count },
@@ -23,8 +30,7 @@ router.post('/sync/:tmdbId', async (req, res) => {
         },
       })
 
-      const seasonData = await tmdb.getTvSeason(req.params.tmdbId, s.season_number)
-      for (const ep of seasonData.episodes || []) {
+      for (const ep of seasonDataList[i].episodes || []) {
         await prisma.episode.upsert({
           where: { seasonId_episodeNumber: { seasonId: season.id, episodeNumber: ep.episode_number } },
           update: { name: ep.name, airDate: ep.air_date },

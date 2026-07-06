@@ -5,6 +5,14 @@ const app = new Hono().basePath('/api')
 
 app.use('*', cors({ origin: '*' }))
 
+// D1 limite le nombre d'instructions par appel .batch() — on découpe en lots
+// pour les séries à très nombreux épisodes (ex. Les Simpson : ~800 épisodes).
+async function batchChunked(db, statements, chunkSize = 100) {
+  for (let i = 0; i < statements.length; i += chunkSize) {
+    await db.batch(statements.slice(i, i + chunkSize))
+  }
+}
+
 // Mots-clés TMDB à exclure systématiquement (contenu pornographique / hentai).
 // TMDB ne marque pas toujours ce contenu comme `adult: true` de façon fiable
 // (particulièrement les OAV hentai côté anime), d'où l'exclusion explicite
@@ -201,22 +209,33 @@ app.post('/episodes/sync/:tmdbId', async (c) => {
   if (!media) return c.json({ error: 'Media not found' }, 404)
 
   const tvDetail = await tmdb(c.env).get(`/tv/${c.req.param('tmdbId')}`)
-  for (const s of (tvDetail.seasons || [])) {
-    if (s.season_number === 0) continue
-    await c.env.DB.prepare(`
-      INSERT INTO Season (mediaId, seasonNumber, name, episodeCount) VALUES (?, ?, ?, ?)
-      ON CONFLICT(mediaId, seasonNumber) DO UPDATE SET episodeCount = excluded.episodeCount
-    `).bind(media.id, s.season_number, s.name, s.episode_count).run()
+  const seasonsToSync = (tvDetail.seasons || []).filter(s => s.season_number !== 0)
 
-    const season = await c.env.DB.prepare('SELECT * FROM Season WHERE mediaId = ? AND seasonNumber = ?').bind(media.id, s.season_number).first()
-    const seasonData = await tmdb(c.env).get(`/tv/${c.req.param('tmdbId')}/season/${s.season_number}`)
-    for (const ep of (seasonData.episodes || [])) {
-      await c.env.DB.prepare(`
-        INSERT INTO Episode (seasonId, episodeNumber, name, airDate) VALUES (?, ?, ?, ?)
-        ON CONFLICT(seasonId, episodeNumber) DO UPDATE SET name = excluded.name, airDate = excluded.airDate
-      `).bind(season.id, ep.episode_number, ep.name, ep.air_date).run()
-    }
-  }
+  // Récupère toutes les saisons EN PARALLÈLE — l'ancienne version faisait un
+  // fetch TMDB par saison de façon séquentielle (await dans une boucle for),
+  // ce qui pouvait prendre 20-30s+ pour une série à nombreuses saisons
+  // (ex. Les Simpson) et donnait l'impression que le bouton ne faisait rien.
+  const seasonDataList = await Promise.all(
+    seasonsToSync.map(s => tmdb(c.env).get(`/tv/${c.req.param('tmdbId')}/season/${s.season_number}`))
+  )
+
+  // Upsert des saisons en batch(s) D1
+  await batchChunked(c.env.DB, seasonsToSync.map(s => c.env.DB.prepare(`
+    INSERT INTO Season (mediaId, seasonNumber, name, episodeCount) VALUES (?, ?, ?, ?)
+    ON CONFLICT(mediaId, seasonNumber) DO UPDATE SET episodeCount = excluded.episodeCount
+  `).bind(media.id, s.season_number, s.name, s.episode_count)))
+
+  const { results: dbSeasons } = await c.env.DB.prepare('SELECT * FROM Season WHERE mediaId = ?').bind(media.id).all()
+  const seasonIdByNumber = Object.fromEntries(dbSeasons.map(s => [s.seasonNumber, s.id]))
+
+  // Upsert de tous les épisodes (toutes saisons confondues) en batch(s)
+  const episodeStatements = seasonsToSync.flatMap((s, i) =>
+    (seasonDataList[i].episodes || []).map(ep => c.env.DB.prepare(`
+      INSERT INTO Episode (seasonId, episodeNumber, name, airDate) VALUES (?, ?, ?, ?)
+      ON CONFLICT(seasonId, episodeNumber) DO UPDATE SET name = excluded.name, airDate = excluded.airDate
+    `).bind(seasonIdByNumber[s.season_number], ep.episode_number, ep.name, ep.air_date))
+  )
+  if (episodeStatements.length > 0) await batchChunked(c.env.DB, episodeStatements)
 
   const { results: seasons } = await c.env.DB.prepare('SELECT * FROM Season WHERE mediaId = ? ORDER BY seasonNumber').bind(media.id).all()
   for (const season of seasons) {
