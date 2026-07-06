@@ -2,11 +2,23 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+
+    <!-- iOS : installation en standalone -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#0B0D12" />
+    <meta name="apple-mobile-web-app-title" content="CineTrack" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Thème système (clair/sombre) — l'app est mono-thème sombre, on force la barre système en conséquence -->
+    <meta name="theme-color" content="#0B0D13" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0B0D13" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="dark" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- manifest + script d'enregistrement du Service Worker injectés automatiquement au build par vite-plugin-pwa -->
+
     <title>CineTrack</title>
   </head>
   <body>

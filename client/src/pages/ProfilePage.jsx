@@ -4,6 +4,7 @@ import { Film, Tv, Clock, Star, Award, Trash2, Plus, BookOpen, Sparkles, Chevron
 import { statsApi, watchlistApi, listsApi } from '../services/api'
 import { useNavigate } from 'react-router-dom'
 import MediaCard from '../components/MediaCard'
+import InstallPrompt from '../components/InstallPrompt'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
@@ -77,6 +78,8 @@ export default function ProfilePage() {
       </div>
 
       <div className="px-4 pt-5 space-y-6">
+        <InstallPrompt />
+
         {/* Navigation vers Journal / Wrapped */}
         <div className="grid grid-cols-2 gap-3">
           <button
