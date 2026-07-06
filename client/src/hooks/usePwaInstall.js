@@ -11,11 +11,20 @@ function isIos() {
   return /iphone|ipad|ipod/i.test(window.navigator.userAgent)
 }
 
+// Sur iOS, Chrome/Firefox/Edge ne sont que des habillages de Safari/WebKit
+// (imposé par Apple) : ils n'ont PAS le moteur d'installation PWA. Seul
+// Safari peut ajouter une vraie PWA standalone à l'écran d'accueil.
+function isOtherIosBrowser() {
+  return /crios|fxios|edgios|opios/i.test(window.navigator.userAgent)
+}
+
 /**
  * Gère l'installation PWA sur les deux plateformes :
  * - Android/Chrome : capture `beforeinstallprompt`, expose `promptInstall()`
  * - iOS/Safari : pas d'API d'installation programmatique — on détecte juste
  *   la plateforme pour afficher l'instruction "Partager > Sur l'écran d'accueil"
+ * - iOS/autre navigateur (Chrome, Firefox...) : installation impossible,
+ *   on invite à rouvrir le site dans Safari
  */
 export function usePwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
@@ -47,10 +56,13 @@ export function usePwaInstall() {
     return outcome
   }, [deferredPrompt])
 
+  const onIos = isIos() && !installed
+
   return {
     installed,
     canPromptInstall: !!deferredPrompt, // Android/Chrome : bouton natif possible
-    isIosSafari: isIos() && !installed, // iOS : pas de prompt natif, afficher l'instruction manuelle
+    isIosSafari: onIos && !isOtherIosBrowser(), // iOS Safari : instruction manuelle "Partager > Écran d'accueil"
+    isIosOtherBrowser: onIos && isOtherIosBrowser(), // iOS Chrome/Firefox/... : installation impossible depuis ce navigateur
     promptInstall,
   }
 }
