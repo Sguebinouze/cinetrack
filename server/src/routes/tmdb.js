@@ -49,6 +49,20 @@ router.get('/tv/:id/season/:season', async (req, res) => {
   }
 })
 
+router.get('/discover/:mediaType', async (req, res) => {
+  try {
+    if (!['movie', 'tv'].includes(req.params.mediaType)) return res.status(400).json({ error: 'Invalid mediaType' })
+    const { genre, maxRuntime } = req.query
+    const params = { sort_by: 'popularity.desc', 'vote_count.gte': 50 }
+    if (genre) params.with_genres = genre
+    if (maxRuntime) params['with_runtime.lte'] = maxRuntime
+    const data = await tmdb.discover(req.params.mediaType, params)
+    res.json(data.results || [])
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 router.get('/anime/trending', async (req, res) => {
   try {
     const results = await tmdb.getAnimeTrending(req.query.window)

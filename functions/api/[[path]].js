@@ -31,6 +31,18 @@ app.get('/tmdb/trending', async (c) => {
   return c.json(data.results || [])
 })
 
+app.get('/tmdb/discover/:mediaType', async (c) => {
+  const mediaType = c.req.param('mediaType')
+  if (!['movie', 'tv'].includes(mediaType)) return c.json({ error: 'Invalid mediaType' }, 400)
+  const genre = c.req.query('genre')
+  const maxRuntime = c.req.query('maxRuntime')
+  const params = { sort_by: 'popularity.desc', 'vote_count.gte': 50 }
+  if (genre) params.with_genres = genre
+  if (maxRuntime) params['with_runtime.lte'] = maxRuntime
+  const data = await tmdb(c.env).get(`/discover/${mediaType}`, params)
+  return c.json(data.results || [])
+})
+
 app.get('/tmdb/anime/trending', async (c) => {
   const data = await tmdb(c.env).get('/discover/tv', {
     with_genres: 16,

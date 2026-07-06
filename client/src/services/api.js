@@ -14,6 +14,7 @@ export const tmdbApi = {
   tvSeason: (id, season) => api.get(`/tmdb/tv/${id}/season/${season}`).then(r => r.data),
   recommendations: (mediaType, id) => api.get(`/tmdb/${mediaType}/${id}/recommendations`).then(r => r.data),
   watchProviders: (mediaType, id) => api.get(`/tmdb/${mediaType}/${id}/watch-providers`).then(r => r.data),
+  discover: (mediaType, params) => api.get(`/tmdb/discover/${mediaType}`, { params }).then(r => r.data),
 }
 
 export const watchlistApi = {
