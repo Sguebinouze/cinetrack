@@ -5,7 +5,6 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import BottomNav from './components/BottomNav'
 import SearchPage from './pages/SearchPage'
 import WatchlistPage from './pages/WatchlistPage'
-import StatsPage from './pages/StatsPage'
 import ProfilePage from './pages/ProfilePage'
 import DetailPage from './pages/DetailPage'
 import JournalPage from './pages/JournalPage'
@@ -62,10 +61,13 @@ export default function App() {
           <div className="relative flex flex-col h-full max-w-lg mx-auto bg-bg">
             <main className="flex-1 overflow-hidden flex flex-col">
               <Routes>
-                <Route path="/" element={<Navigate to="/search" replace />} />
+                {/* Ma liste est l'accueil : on ouvre l'app sur ce qu'on peut regarder ce soir. */}
+                <Route path="/" element={<Navigate to="/watchlist" replace />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/watchlist" element={<WatchlistPage />} />
-                <Route path="/stats" element={<StatsPage />} />
+                {/* Stats a fusionné dans « Moi ». Redirection pour ne pas casser un
+                    raccourci PWA ou un onglet déjà ouvert sur l'ancienne URL. */}
+                <Route path="/stats" element={<Navigate to="/profile" replace />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/journal" element={<JournalPage />} />
                 <Route path="/wrapped" element={<WrappedPage />} />

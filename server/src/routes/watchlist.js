@@ -2,16 +2,57 @@ const router = require('express').Router()
 const prisma = require('../lib/prisma')
 const tmdb = require('../services/tmdb')
 
-// GET /api/watchlist — liste complète
+// La progression épisode est agrégée en SQL et renvoyée avec chaque fiche : « Ma liste »
+// en a besoin pour TRIER (séries à rattraper en premier). Le statut déclaré n'est plus la
+// source de vérité — l'état réel se déduit de ces compteurs (client/src/utils/progress.js).
+//
+// $queryRaw plutôt qu'une reconstruction Prisma : c'est exactement le même SQL que le
+// backend D1 de prod, donc les deux ne peuvent pas diverger silencieusement.
+const WATCHLIST_QUERY = `
+  SELECT w.id, w.status, w.rating, w.reviewPrivate, w.reviewPublic, w.watchedAt, w.addedAt, w.updatedAt,
+         m.id AS mediaId, m.tmdbId, m.mediaType, m.title, m.posterPath, m.backdropPath, m.overview,
+         m.releaseDate, m.genres, m.runtime, m.voteAverage, m.director, m.isAnime,
+         COUNT(e.id) AS epTotal,
+         COALESCE(SUM(CASE WHEN e.airDate IS NULL OR e.airDate <= date('now') THEN 1 ELSE 0 END), 0) AS epAired,
+         COALESCE(SUM(COALESCE(e.watched, 0)), 0) AS epWatched,
+         MAX(CASE WHEN e.watched = 0 AND (e.airDate IS NULL OR e.airDate <= date('now')) THEN e.airDate END) AS epLastUnwatched
+  FROM WatchEntry w
+  JOIN Media m ON w.mediaId = m.id
+  LEFT JOIN Season s ON s.mediaId = m.id
+  LEFT JOIN Episode e ON e.seasonId = s.id
+`
+
+// SQLite renvoie les COUNT/SUM en BigInt via Prisma : on repasse en Number, sinon
+// JSON.stringify explose (« Do not know how to serialize a BigInt »).
+const num = (v) => Number(v ?? 0)
+
+const toEntry = (row) => ({
+  id: num(row.id), status: row.status, rating: row.rating,
+  reviewPrivate: row.reviewPrivate, reviewPublic: row.reviewPublic,
+  watchedAt: row.watchedAt, addedAt: row.addedAt, updatedAt: row.updatedAt,
+  media: {
+    id: num(row.mediaId), tmdbId: num(row.tmdbId), mediaType: row.mediaType,
+    title: row.title, posterPath: row.posterPath, backdropPath: row.backdropPath,
+    overview: row.overview, releaseDate: row.releaseDate,
+    genres: row.genres, runtime: row.runtime, voteAverage: row.voteAverage,
+    director: row.director, isAnime: !!row.isAnime,
+  },
+  episodes: {
+    total: num(row.epTotal),
+    aired: num(row.epAired),
+    watched: num(row.epWatched),
+    lastUnwatchedAirDate: row.epLastUnwatched,
+  },
+})
+
+// GET /api/watchlist — liste complète, avec progression
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query
-    const entries = await prisma.watchEntry.findMany({
-      where: status ? { status } : undefined,
-      include: { media: true },
-      orderBy: { updatedAt: 'desc' },
-    })
-    res.json(entries)
+    const rows = status
+      ? await prisma.$queryRawUnsafe(`${WATCHLIST_QUERY} WHERE w.status = ? GROUP BY w.id ORDER BY w.updatedAt DESC`, status)
+      : await prisma.$queryRawUnsafe(`${WATCHLIST_QUERY} GROUP BY w.id ORDER BY w.updatedAt DESC`)
+    res.json(rows.map(toEntry))
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

@@ -145,28 +145,57 @@ app.get('/tmdb/:mediaType/:id/watch-providers', async (c) => {
 })
 
 // ── WATCHLIST ─────────────────────────────────────────────
+// La progression épisode est agrégée en SQL et renvoyée avec chaque fiche.
+// « Ma liste » en a besoin pour TRIER (séries à rattraper en premier) : sans ça,
+// le client devrait télécharger les 1400 épisodes pour classer 9 titres.
+//
+// Le statut déclaré (watchlist/watching/watched) n'est plus la source de vérité —
+// personne ne le met à jour à la main. L'état réel se déduit de ces compteurs,
+// côté client (client/src/utils/progress.js).
+const WATCHLIST_QUERY = `
+  SELECT w.id, w.status, w.rating, w.reviewPrivate, w.reviewPublic, w.watchedAt, w.addedAt, w.updatedAt,
+         m.id AS mediaId, m.tmdbId, m.mediaType, m.title, m.posterPath, m.backdropPath, m.overview,
+         m.releaseDate, m.genres, m.runtime, m.voteAverage, m.director, m.isAnime,
+         COUNT(e.id) AS epTotal,
+         COALESCE(SUM(CASE WHEN e.airDate IS NULL OR e.airDate <= date('now') THEN 1 ELSE 0 END), 0) AS epAired,
+         COALESCE(SUM(COALESCE(e.watched, 0)), 0) AS epWatched,
+         -- Date du dernier épisode SORTI mais NON VU : c'est elle qui fait remonter
+         -- une série dont un épisode vient de tomber devant un vieux retard de 27 épisodes.
+         MAX(CASE WHEN e.watched = 0 AND (e.airDate IS NULL OR e.airDate <= date('now')) THEN e.airDate END) AS epLastUnwatched
+  FROM WatchEntry w
+  JOIN Media m ON w.mediaId = m.id
+  LEFT JOIN Season s ON s.mediaId = m.id
+  LEFT JOIN Episode e ON e.seasonId = s.id
+`
+
+const toEntry = (row) => ({
+  id: row.id, status: row.status, rating: row.rating,
+  reviewPrivate: row.reviewPrivate, reviewPublic: row.reviewPublic,
+  watchedAt: row.watchedAt, addedAt: row.addedAt, updatedAt: row.updatedAt,
+  media: {
+    id: row.mediaId, tmdbId: row.tmdbId, mediaType: row.mediaType,
+    title: row.title, posterPath: row.posterPath, backdropPath: row.backdropPath,
+    overview: row.overview, releaseDate: row.releaseDate,
+    genres: row.genres, runtime: row.runtime, voteAverage: row.voteAverage,
+    director: row.director, isAnime: !!row.isAnime,
+  },
+  episodes: {
+    total: row.epTotal,
+    aired: row.epAired,
+    watched: row.epWatched,
+    lastUnwatchedAirDate: row.epLastUnwatched,
+  },
+})
+
 app.get('/watchlist', async (c) => {
   const status = c.req.query('status')
-  const query = status
-    ? 'SELECT w.*, m.tmdbId, m.mediaType, m.title, m.posterPath, m.backdropPath, m.overview, m.releaseDate, m.genres, m.runtime, m.voteAverage, m.director, m.isAnime FROM WatchEntry w JOIN Media m ON w.mediaId = m.id WHERE w.status = ? ORDER BY w.updatedAt DESC'
-    : 'SELECT w.*, m.tmdbId, m.mediaType, m.title, m.posterPath, m.backdropPath, m.overview, m.releaseDate, m.genres, m.runtime, m.voteAverage, m.director, m.isAnime FROM WatchEntry w JOIN Media m ON w.mediaId = m.id ORDER BY w.updatedAt DESC'
+  const query = `${WATCHLIST_QUERY} ${status ? 'WHERE w.status = ?' : ''} GROUP BY w.id ORDER BY w.updatedAt DESC`
 
   const { results } = status
     ? await c.env.DB.prepare(query).bind(status).all()
     : await c.env.DB.prepare(query).all()
 
-  return c.json(results.map(row => ({
-    id: row.id, status: row.status, rating: row.rating,
-    reviewPrivate: row.reviewPrivate, reviewPublic: row.reviewPublic,
-    watchedAt: row.watchedAt, addedAt: row.addedAt, updatedAt: row.updatedAt,
-    media: {
-      id: row.mediaId, tmdbId: row.tmdbId, mediaType: row.mediaType,
-      title: row.title, posterPath: row.posterPath, backdropPath: row.backdropPath,
-      overview: row.overview, releaseDate: row.releaseDate,
-      genres: row.genres, runtime: row.runtime, voteAverage: row.voteAverage,
-      director: row.director, isAnime: !!row.isAnime,
-    }
-  })))
+  return c.json(results.map(toEntry))
 })
 
 app.post('/watchlist', async (c) => {
@@ -502,14 +531,28 @@ app.delete('/lists/:id/items/:mediaId', async (c) => {
 
 // ── STATS ─────────────────────────────────────────────────
 app.get('/stats', async (c) => {
+  // On rapatrie la progression épisode avec chaque fiche : le statut déclaré ne dit pas
+  // la vérité (il annonçait « 0 série vue » alors que 473 épisodes étaient vus).
   const { results: entries } = await c.env.DB.prepare(`
-    SELECT w.status, w.rating, w.updatedAt, m.mediaType, m.runtime, m.genres, m.director
-    FROM WatchEntry w JOIN Media m ON w.mediaId = m.id
+    SELECT w.status, w.rating, w.updatedAt, m.mediaType, m.runtime, m.genres, m.director,
+           COALESCE(SUM(COALESCE(e.watched, 0)), 0) AS epWatched
+    FROM WatchEntry w
+    JOIN Media m ON w.mediaId = m.id
+    LEFT JOIN Season s ON s.mediaId = m.id
+    LEFT JOIN Episode e ON e.seasonId = s.id
+    GROUP BY w.id
   `).all()
 
   const { results: episodes } = await c.env.DB.prepare('SELECT id, watchedAt FROM Episode WHERE watched = 1').all()
 
-  const watched = entries.filter(e => e.status === 'watched')
+  // « Compte dans mes stats » :
+  //  · un film, s'il est marqué vu — un film n'a pas d'épisodes, le statut reste la
+  //    seule information disponible, et on pense à le cocher pour un film ;
+  //  · une série, dès qu'on en a vu AU MOINS UN épisode — c'est ça, « suivre » une série.
+  //    Exiger qu'elle soit terminée viderait les genres favoris de quiconque regarde
+  //    des séries en cours.
+  const counts = (e) => e.mediaType === 'movie' ? e.status === 'watched' : e.epWatched > 0
+  const watched = entries.filter(counts)
   const movies = watched.filter(e => e.mediaType === 'movie')
   const series = watched.filter(e => e.mediaType === 'tv')
   const movieMinutes = movies.reduce((a, e) => a + (e.runtime || 0), 0)

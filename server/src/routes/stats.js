@@ -3,12 +3,31 @@ const prisma = require('../lib/prisma')
 
 router.get('/', async (req, res) => {
   try {
-    const [entries, episodes] = await Promise.all([
+    const [entries, episodes, watchedBySeries] = await Promise.all([
       prisma.watchEntry.findMany({ include: { media: true } }),
       prisma.episode.findMany({ where: { watched: true } }),
+      // Nombre d'épisodes vus par média — le statut déclaré ne dit pas la vérité
+      // (il annonçait « 0 série vue » alors que 473 épisodes étaient vus).
+      prisma.$queryRawUnsafe(`
+        SELECT s.mediaId AS mediaId, COUNT(*) AS n
+        FROM Episode e JOIN Season s ON s.id = e.seasonId
+        WHERE e.watched = 1 GROUP BY s.mediaId
+      `),
     ])
 
-    const watched = entries.filter(e => e.status === 'watched')
+    const epWatchedByMedia = new Map(watchedBySeries.map(r => [Number(r.mediaId), Number(r.n)]))
+
+    // « Compte dans mes stats » :
+    //  · un film, s'il est marqué vu — il n'a pas d'épisodes, le statut est la seule
+    //    information disponible, et on pense à le cocher pour un film ;
+    //  · une série, dès qu'on en a vu AU MOINS UN épisode — c'est ça, « suivre » une
+    //    série. Exiger qu'elle soit terminée viderait les genres favoris de quiconque
+    //    regarde des séries en cours.
+    const counts = (e) => e.media.mediaType === 'movie'
+      ? e.status === 'watched'
+      : (epWatchedByMedia.get(e.mediaId) || 0) > 0
+
+    const watched = entries.filter(counts)
     const movies = watched.filter(e => e.media.mediaType === 'movie')
     const series = watched.filter(e => e.media.mediaType === 'tv')
 

@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Search, ListVideo, BarChart2, User } from 'lucide-react'
+import { Search, ListVideo, User } from 'lucide-react'
 
+// « Ma liste » en premier : c'est la page d'accueil. Stats a fusionné dans « Moi ».
 const tabs = [
-  { to: '/search', icon: Search, label: 'Découvrir' },
   { to: '/watchlist', icon: ListVideo, label: 'Ma liste' },
-  { to: '/stats', icon: BarChart2, label: 'Stats' },
-  { to: '/profile', icon: User, label: 'Profil' },
+  { to: '/search', icon: Search, label: 'Découvrir' },
+  { to: '/profile', icon: User, label: 'Moi' },
 ]
 
 export default function BottomNav() {
