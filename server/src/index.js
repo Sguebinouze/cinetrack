@@ -13,6 +13,8 @@ app.use('/api/watchlist', require('./routes/watchlist'))
 app.use('/api/episodes', require('./routes/episodes'))
 app.use('/api/stats', require('./routes/stats'))
 app.use('/api/lists', require('./routes/lists'))
+// Actions en masse : /api/seasons/:id/watch-all et /api/series/:tmdbId/watch-all
+app.use('/api', require('./routes/bulk'))
 
 app.get('/api/health', (_, res) => res.json({ ok: true }))
 

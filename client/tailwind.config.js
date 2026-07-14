@@ -28,6 +28,15 @@ export default {
       screens: {
         xs: '375px',
       },
+      keyframes: {
+        'toast-in': {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'toast-in': 'toast-in 180ms ease-out',
+      },
     },
   },
   plugins: [],

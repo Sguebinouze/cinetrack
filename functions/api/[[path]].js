@@ -260,6 +260,74 @@ app.patch('/episodes/:episodeId/rate', async (c) => {
   return c.json(ep)
 })
 
+// ── ACTIONS EN MASSE (tout marquer comme vu) ──────────────
+// L'état « vu » d'un épisode vit dans les colonnes Episode.watched/watchedAt :
+// pas de table de jonction, donc pas d'upsert — un seul UPDATE couvre toute une
+// saison ou toute une série, quel que soit le nombre d'épisodes.
+//
+// Trois invariants encodés dans le SQL ci-dessous :
+//  · `watched != ?` ignore les épisodes déjà dans l'état voulu. Ils gardent donc
+//    leur watchedAt d'origine : réappuyer sur le bouton ne réécrit pas
+//    l'historique du journal ni du Wrapped. Bonus, meta.changes ne compte que les
+//    épisodes réellement basculés — c'est le chiffre affiché dans le toast.
+//  · Cocher n'affecte que les épisodes DIFFUSÉS (airDate passée). Un airDate NULL
+//    compte comme diffusé : TMDB laisse parfois le champ vide sur du vieux contenu.
+//    Décocher, lui, ne filtre rien — on nettoie tout, y compris une saisie erronée.
+//  · date('now') est évalué par SQLite en UTC. Le décalage avec Paris ne peut
+//    jouer que sur un épisode diffusé le jour même : sans risque de le cocher trop tôt.
+const bulkUpdateEpisodes = (db, scope, scopeId, flag, now) => db.prepare(`
+  UPDATE Episode
+  SET watched = ?,
+      watchedAt = CASE WHEN ? = 1 THEN ? ELSE NULL END
+  WHERE ${scope === 'season' ? 'seasonId = ?' : 'seasonId IN (SELECT id FROM Season WHERE mediaId = ?)'}
+    AND watched != ?
+    AND (? = 0 OR airDate IS NULL OR airDate <= date('now'))
+`).bind(flag, flag, now, scopeId, flag, flag)
+
+app.post('/seasons/:seasonId/watch-all', async (c) => {
+  const seasonId = Number(c.req.param('seasonId'))
+  const { watched = true } = await c.req.json().catch(() => ({}))
+
+  const season = await c.env.DB.prepare('SELECT id, mediaId FROM Season WHERE id = ?').bind(seasonId).first()
+  if (!season) return c.json({ error: 'Season not found' }, 404)
+
+  const flag = watched ? 1 : 0
+  const statements = [bulkUpdateEpisodes(c.env.DB, 'season', seasonId, flag, new Date().toISOString())]
+
+  // Boucler une saison entière fait sortir la fiche de la pile « à voir ».
+  if (flag === 1) {
+    statements.push(c.env.DB.prepare(`
+      UPDATE WatchEntry SET status = 'watching', updatedAt = datetime('now')
+      WHERE mediaId = ? AND status = 'watchlist'
+    `).bind(season.mediaId))
+  }
+
+  // .batch() = une seule transaction D1 : épisodes et statut basculent ensemble.
+  const [episodes] = await c.env.DB.batch(statements)
+  return c.json({ updated: episodes.meta.changes, watched: flag === 1 })
+})
+
+app.post('/series/:tmdbId/watch-all', async (c) => {
+  const media = await c.env.DB.prepare('SELECT id FROM Media WHERE tmdbId = ?')
+    .bind(Number(c.req.param('tmdbId'))).first()
+  if (!media) return c.json({ error: 'Media not found' }, 404)
+
+  const { watched = true } = await c.req.json().catch(() => ({}))
+  const now = new Date().toISOString()
+  const flag = watched ? 1 : 0
+  const statements = [bulkUpdateEpisodes(c.env.DB, 'series', media.id, flag, now)]
+
+  if (flag === 1) {
+    statements.push(c.env.DB.prepare(`
+      UPDATE WatchEntry SET status = 'watched', watchedAt = COALESCE(watchedAt, ?), updatedAt = datetime('now')
+      WHERE mediaId = ?
+    `).bind(now, media.id))
+  }
+
+  const [episodes] = await c.env.DB.batch(statements)
+  return c.json({ updated: episodes.meta.changes, watched: flag === 1 })
+})
+
 // ── CUSTOM LISTS ──────────────────────────────────────────
 app.get('/lists', async (c) => {
   const { results: lists } = await c.env.DB.prepare('SELECT * FROM CustomList ORDER BY createdAt DESC').all()

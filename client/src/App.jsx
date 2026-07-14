@@ -11,6 +11,7 @@ import DetailPage from './pages/DetailPage'
 import JournalPage from './pages/JournalPage'
 import WrappedPage from './pages/WrappedPage'
 import UpdateNotification from './components/UpdateNotification'
+import { ToastProvider } from './components/Toast'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,22 +58,24 @@ export default function App() {
       }}
     >
       <BrowserRouter>
-        <div className="relative flex flex-col h-full max-w-lg mx-auto bg-bg">
-          <main className="flex-1 overflow-hidden flex flex-col">
-            <Routes>
-              <Route path="/" element={<Navigate to="/search" replace />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/watchlist" element={<WatchlistPage />} />
-              <Route path="/stats" element={<StatsPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/journal" element={<JournalPage />} />
-              <Route path="/wrapped" element={<WrappedPage />} />
-              <Route path="/:type/:id" element={<DetailPage />} />
-            </Routes>
-          </main>
-          <BottomNav />
-          <UpdateNotification />
-        </div>
+        <ToastProvider>
+          <div className="relative flex flex-col h-full max-w-lg mx-auto bg-bg">
+            <main className="flex-1 overflow-hidden flex flex-col">
+              <Routes>
+                <Route path="/" element={<Navigate to="/search" replace />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/watchlist" element={<WatchlistPage />} />
+                <Route path="/stats" element={<StatsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/journal" element={<JournalPage />} />
+                <Route path="/wrapped" element={<WrappedPage />} />
+                <Route path="/:type/:id" element={<DetailPage />} />
+              </Routes>
+            </main>
+            <BottomNav />
+            <UpdateNotification />
+          </div>
+        </ToastProvider>
       </BrowserRouter>
     </PersistQueryClientProvider>
   )

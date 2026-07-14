@@ -1,16 +1,50 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Check, Star, Clock, Film, Tv, ChevronDown, ChevronUp, Trash2, AlertCircle, Loader, ListPlus } from 'lucide-react'
+import { ChevronLeft, Check, CheckCheck, Star, Clock, Film, Tv, ChevronDown, ChevronUp, Trash2, AlertCircle, Loader, ListPlus } from 'lucide-react'
 import { tmdbApi, watchlistApi, episodesApi, listsApi, TMDB_IMAGE } from '../services/api'
 import StarRating from '../components/StarRating'
 import StatusPicker from '../components/StatusPicker'
 import MediaCard from '../components/MediaCard'
+import NextEpisodeBadge from '../components/NextEpisodeBadge'
+import { useToast } from '../hooks/useToast'
+import { isAired } from '../utils/airDate'
+
+/**
+ * Rejoue localement une action en masse sur le cache des saisons, en reproduisant
+ * exactement les règles du serveur (épisodes non diffusés épargnés, watchedAt d'un
+ * épisode déjà vu préservé). Permet de basculer les coches sans attendre le réseau.
+ * @param {Array} seasons  Cache courant de ['seasons', id].
+ * @param {boolean} watched
+ * @param {number} [seasonId]  Restreint à une saison ; sinon toute la série.
+ */
+const applyBulkWatch = (seasons, watched, seasonId) => {
+  const now = new Date().toISOString()
+  return (seasons || []).map(season =>
+    seasonId && season.id !== seasonId ? season : {
+      ...season,
+      episodes: season.episodes.map(ep =>
+        watched && !isAired(ep)
+          ? ep
+          : { ...ep, watched, watchedAt: watched ? ep.watchedAt || now : null }
+      ),
+    }
+  )
+}
+
+const bulkToastMessage = (updated, watched) => {
+  if (updated === 0) return 'Tout était déjà à jour'
+  const s = updated > 1 ? 's' : ''
+  return watched
+    ? `${updated} épisode${s} marqué${s} comme vu${s}`
+    : `${updated} épisode${s} décoché${s}`
+}
 
 export default function DetailPage() {
   const { type, id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const toast = useToast()
   const [showReview, setShowReview] = useState(false)
   const [reviewText, setReviewText] = useState('')
   const [expandedSeason, setExpandedSeason] = useState(null)
@@ -91,6 +125,32 @@ export default function DetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['seasons', id] }),
   })
 
+  // Action en masse. Seule mutation optimiste de la page : cocher 200 épisodes en
+  // attendant un aller-retour réseau donnerait l'impression que le bouton est mort.
+  // `seasonId` absent = toute la série.
+  const bulkWatchMutation = useMutation({
+    mutationFn: ({ seasonId, watched }) => seasonId
+      ? episodesApi.watchAllSeason(seasonId, watched)
+      : episodesApi.watchAllSeries(id, watched),
+    onMutate: async ({ seasonId, watched }) => {
+      await qc.cancelQueries({ queryKey: ['seasons', id] })
+      const previous = qc.getQueryData(['seasons', id])
+      qc.setQueryData(['seasons', id], applyBulkWatch(previous, watched, seasonId))
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      qc.setQueryData(['seasons', id], context?.previous)
+      toast('Impossible de mettre à jour les épisodes', 'error')
+    },
+    onSuccess: ({ updated, watched }) => toast(bulkToastMessage(updated, watched)),
+    // Le statut de la fiche a pu basculer (watchlist → watching → watched) :
+    // on resynchronise les épisodes ET la watchlist / les stats.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['seasons', id] })
+      invalidate()
+    },
+  })
+
   const addToListMutation = useMutation({
     mutationFn: async (listId) => {
       if (!entry) await watchlistApi.add(id, type, 'watchlist')
@@ -158,6 +218,13 @@ export default function DetailPage() {
 
   const totalEpisodes = seasons.reduce((a, s) => a + s.episodes.length, 0)
   const watchedEpisodes = seasons.reduce((a, s) => a + s.episodes.filter(e => e.watched).length, 0)
+
+  // Les actions en masse ne portent que sur les épisodes déjà diffusés : un épisode
+  // à venir ne doit jamais être coché, et ne doit pas empêcher le bouton de passer
+  // en mode « Tout décocher » une fois la série rattrapée.
+  const airedEpisodes = seasons.flatMap(s => s.episodes).filter(ep => isAired(ep))
+  const allAiredWatched = airedEpisodes.length > 0 && airedEpisodes.every(ep => ep.watched)
+  const seriesBulkPending = bulkWatchMutation.isPending && !bulkWatchMutation.variables?.seasonId
 
   const isMutating = addMutation.isPending || updateMutation.isPending
 
@@ -346,6 +413,9 @@ export default function DetailPage() {
           <p className="text-sm text-text-sec leading-relaxed mb-5">{detail.overview}</p>
         )}
 
+        {/* Prochain épisode — ne s'affiche que si TMDB en annonce un (série en cours) */}
+        {type === 'tv' && <NextEpisodeBadge detail={detail} />}
+
         {/* Statut */}
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-3">
@@ -431,22 +501,70 @@ export default function DetailPage() {
               </div>
             )}
 
-            {seasons.map(season => (
+            {/* Action en masse sur toute la série (épisodes diffusés uniquement) */}
+            {airedEpisodes.length > 0 && (
+              <button
+                onClick={() => bulkWatchMutation.mutate({ watched: !allAiredWatched })}
+                disabled={bulkWatchMutation.isPending}
+                className="w-full flex items-center justify-center gap-2 mb-4 py-2.5 rounded-xl border border-border text-xs font-medium text-text-sec active:bg-white/5 disabled:opacity-50 transition-colors"
+              >
+                {seriesBulkPending
+                  ? <Loader size={14} className="animate-spin text-gold" />
+                  : <CheckCheck size={14} className={allAiredWatched ? 'text-green' : 'text-text-dim'} />
+                }
+                {allAiredWatched ? 'Tout décocher' : 'Marquer la série comme vue'}
+              </button>
+            )}
+
+            {seasons.map(season => {
+              const label = season.name || `Saison ${season.seasonNumber}`
+              const expanded = expandedSeason === season.id
+              const toggle = () => setExpandedSeason(expanded ? null : season.id)
+
+              const seasonAired = season.episodes.filter(ep => isAired(ep))
+              const seasonAllWatched = seasonAired.length > 0 && seasonAired.every(ep => ep.watched)
+              const seasonPending = bulkWatchMutation.isPending && bulkWatchMutation.variables?.seasonId === season.id
+
+              return (
               <div key={season.id} className="mb-2 border border-border rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setExpandedSeason(expandedSeason === season.id ? null : season.id)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left active:bg-white/5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-text-primary">{season.name || `Saison ${season.seasonNumber}`}</span>
-                    <span className="text-xs text-text-sec bg-card px-2 py-0.5 rounded-full border border-border">
+                {/* Un <button> ne peut pas en contenir un autre : la ligne est une div,
+                    le repli et l'action en masse sont deux boutons frères. */}
+                <div className="flex items-center">
+                  <button
+                    onClick={toggle}
+                    className="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 text-left active:bg-white/5"
+                  >
+                    <span className="text-sm font-medium text-text-primary truncate">{label}</span>
+                    <span className="text-xs text-text-sec bg-card px-2 py-0.5 rounded-full border border-border flex-shrink-0">
                       {season.episodes.filter(e => e.watched).length}/{season.episodes.length}
                     </span>
-                  </div>
-                  {expandedSeason === season.id ? <ChevronUp size={16} className="text-text-dim" /> : <ChevronDown size={16} className="text-text-dim" />}
-                </button>
+                  </button>
 
-                {expandedSeason === season.id && (
+                  {seasonAired.length > 0 && (
+                    <button
+                      onClick={() => bulkWatchMutation.mutate({ seasonId: season.id, watched: !seasonAllWatched })}
+                      disabled={bulkWatchMutation.isPending}
+                      aria-label={`${seasonAllWatched ? 'Tout décocher' : 'Tout marquer comme vu'} — ${label}`}
+                      className={`w-11 h-11 flex items-center justify-center flex-shrink-0 active:bg-white/5 disabled:opacity-40 transition-colors ${seasonAllWatched ? 'text-green' : 'text-text-dim'}`}
+                    >
+                      {seasonPending
+                        ? <Loader size={16} className="animate-spin text-gold" />
+                        : <CheckCheck size={16} />
+                      }
+                    </button>
+                  )}
+
+                  <button
+                    onClick={toggle}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="w-9 h-11 flex items-center justify-center flex-shrink-0 text-text-dim active:bg-white/5"
+                  >
+                    {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                </div>
+
+                {expanded && (
                   <div className="border-t border-border">
                     {season.episodes.map(ep => (
                       <div key={ep.id} className="px-4 py-2.5 border-b border-border/40 last:border-0">
@@ -477,7 +595,8 @@ export default function DetailPage() {
                   </div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 

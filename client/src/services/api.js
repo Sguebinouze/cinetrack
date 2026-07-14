@@ -29,6 +29,10 @@ export const episodesApi = {
   sync: (tmdbId) => api.post(`/episodes/sync/${tmdbId}`).then(r => r.data),
   markWatched: (episodeId, watched) => api.patch(`/episodes/${episodeId}/watch`, { watched }).then(r => r.data),
   rate: (episodeId, rating) => api.patch(`/episodes/${episodeId}/rate`, { rating }).then(r => r.data),
+  // Actions en masse — un seul UPDATE côté serveur, quel que soit le nombre d'épisodes.
+  // Ne coche que les épisodes déjà diffusés ; décocher ne filtre rien.
+  watchAllSeason: (seasonId, watched) => api.post(`/seasons/${seasonId}/watch-all`, { watched }).then(r => r.data),
+  watchAllSeries: (tmdbId, watched) => api.post(`/series/${tmdbId}/watch-all`, { watched }).then(r => r.data),
 }
 
 export const listsApi = {
