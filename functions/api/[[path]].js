@@ -5,6 +5,14 @@ const app = new Hono().basePath('/api')
 
 app.use('*', cors({ origin: '*' }))
 
+// Le fichier client/public/_headers ne s'applique qu'aux fichiers statiques : les
+// réponses des Pages Functions y échappent. On repose donc l'en-tête ici, sinon
+// l'API serait le seul endroit indexable de l'app.
+app.use('*', async (c, next) => {
+  await next()
+  c.header('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet')
+})
+
 // D1 limite le nombre d'instructions par appel .batch() — on découpe en lots
 // pour les séries à très nombreux épisodes (ex. Les Simpson : ~800 épisodes).
 async function batchChunked(db, statements, chunkSize = 100) {
