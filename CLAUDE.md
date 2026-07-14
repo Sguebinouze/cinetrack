@@ -39,13 +39,45 @@ Un `Episode` n'a **ni `mediaId` ni id TMDB** : on y accède uniquement via `Epis
 - Leçon du commit 49b766e (26s → 2s) : **jamais de `await` dans une boucle** pour les fetchs TMDB (`Promise.all`) ni pour les écritures D1 (`batch`).
 - Les upserts de synchro ne touchent **jamais** `watched` / `watchedAt` / `rating` : re-synchroniser doit préserver l'état de visionnage. Conserver cette propriété.
 
+## L'état d'un titre est DÉDUIT, jamais saisi
+
+Le statut déclaré (`WatchEntry.status`) **n'est pas la source de vérité** et ne doit plus servir à classer quoi que ce soit. Il mentait sur la moitié de la liste : Silo était marqué « à voir » avec 10 épisodes sur 22 déjà vus, parce que personne ne maintient ce champ à la main. La vérité est dans les compteurs d'épisodes.
+
+Règle unique, implémentée dans [`client/src/utils/progress.js`](client/src/utils/progress.js) — toute autre partie du code doit s'y référer plutôt que de recalculer :
+
+1. `status === 'dropped'` → **archived**. Seul état encore déclaratif : abandonner est une décision, ça ne se devine pas d'une progression.
+2. Film, ou série jamais synchronisée (`episodes.total === 0`) → aucune progression à lire, on retombe sur le statut : `watched` → **done**, sinon **notStarted**.
+3. `episodes.watched === 0` → **notStarted**.
+4. `episodes.aired - episodes.watched > 0` → **behind**.
+5. Tout le sorti est vu : `episodes.aired < episodes.total` → **upToDate** (la série continue), sinon → **done**.
+
+« Sorti » = `airDate <= date('now')` **ou** `airDate IS NULL` (TMDB laisse parfois le champ vide sur du vieux contenu). Un épisode à venir ne met jamais en retard.
+
+Regroupement en trois onglets sur « Ma liste » :
+
+| Onglet | États | Sens |
+|---|---|---|
+| **À suivre** | `behind` + `upToDate` | Commencé, pas fini |
+| **À voir** | `notStarted` | Jamais lancé |
+| **Terminé** | `done` + `archived` | Plus rien à regarder |
+
+⚠️ Une série sur laquelle on est à jour reste dans **À suivre**, pas dans Terminé : elle n'est pas finie, elle attend son prochain épisode. Le jour où il tombe, elle remonte en tête toute seule.
+
+**Tri** : `behind` → `notStarted` → `upToDate` → `done` → `archived`. Entre deux séries `behind`, celle dont un épisode est sorti le plus **récemment** passe devant (`lastUnwatchedAirDate` décroissant) — un épisode qui vient de tomber est plus actionnable qu'un retard de 27 épisodes accumulé depuis des mois.
+
+Côté API, `GET /api/watchlist` renvoie `episodes: { total, aired, watched, lastUnwatchedAirDate }`, agrégé **en SQL** : sans ça, trier 9 titres imposerait de télécharger 1500 épisodes. `GET /api/stats` applique la même philosophie — une série compte dès le **premier épisode vu** (l'ancienne version annonçait « 0 série vue » alors que 473 épisodes l'étaient, et laissait « Genres favoris » vide).
+
 ## Frontend
 
 `client/` — React 19, Vite, Tailwind 3.4, TanStack Query 5, **axios** (pas fetch), react-router 7, lucide-react, PWA. Linter : **oxlint**.
 
+**Trois onglets** (`BottomNav.jsx`) : **Ma liste** (`/watchlist`, c'est l'accueil — `/` y redirige) · **Découvrir** (`/search`) · **Moi** (`/profile`). Pages hors nav : `/journal`, `/wrapped`, `/:type/:id`.
+`/stats` n'existe plus — l'ancienne page a fusionné dans « Moi » (les deux affichaient « Genres favoris », un vrai doublon). La route redirige vers `/profile` pour ne pas casser un raccourci PWA.
+
 - **Pas de shadcn/ui, pas de `cn()`/clsx.** Tailwind écrit à la main.
 - **Dark only.** Aucune variante `dark:`. Palette sémantique dans `tailwind.config.js` — utiliser les noms (`bg`, `surface`, `card`, `border`, `gold`, `text-primary`, `text-sec`, `text-dim`, `green`, `blue`, `red`), **jamais de hex brut**.
-- **Query keys inline**, pas de factory : `['detail', type, id]`, `['seasons', id]`, `['watchlist', filter]`, `['stats']`, `['lists']`…
+- **Query keys inline**, pas de factory : `['detail', type, id]`, `['seasons', id]`, `['watchlist', null]`, `['stats']`, `['lists']`, `['next-episode', id]`…
+- « Ma liste » ne filtre plus côté serveur : une seule requête `['watchlist', null]`, l'état est déduit côté client (cf. section ci-dessus).
 - Un nouveau préfixe de query à persister offline doit être ajouté à `PERSISTED_QUERY_PREFIXES` dans `App.jsx`.
 - **Mutations : `invalidateQueries` dans `onSuccess`.** Une seule mutation optimiste dans toute l'app (l'action en masse de `DetailPage`) — c'est volontaire, elle touche des centaines de lignes.
 - **Toasts** : `useToast()` depuis `client/src/hooks/useToast.js` → `toast('message')` ou `toast('message', 'error')`. Provider monté dans `App.jsx`.
