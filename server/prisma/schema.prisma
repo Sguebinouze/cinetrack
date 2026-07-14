@@ -20,6 +20,7 @@ model Media {
   voteAverage  Float?
   director     String?
   isAnime      Boolean  @default(false)
+  tvmazeId     Int?
   createdAt    DateTime @default(now())
 
   watchEntry WatchEntry?
@@ -59,6 +60,7 @@ model Episode {
   episodeNumber Int
   name          String?
   airDate       String?
+  airstamp      String?
   watched       Boolean   @default(false)
   watchedAt     DateTime?
   rating        Float?

@@ -11,6 +11,7 @@ app.use(express.json())
 app.use('/api/tmdb', require('./routes/tmdb'))
 app.use('/api/watchlist', require('./routes/watchlist'))
 app.use('/api/episodes', require('./routes/episodes'))
+app.use('/api/tv', require('./routes/tv'))
 app.use('/api/stats', require('./routes/stats'))
 app.use('/api/lists', require('./routes/lists'))
 // Actions en masse : /api/seasons/:id/watch-all et /api/series/:tmdbId/watch-all

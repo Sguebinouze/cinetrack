@@ -1,11 +1,16 @@
-// Formatage des dates de diffusion TMDB en heure française.
+// Formatage des dates/heures de diffusion en heure française.
 //
-// TMDB ne renvoie qu'une DATE (« 2026-07-22 »), jamais l'heure de diffusion :
-// ni /tv/{id} ni next_episode_to_air n'exposent d'horaire. On gère malgré tout
-// le cas d'un ISO complet (« 2026-07-22T19:00:00Z ») au cas où la source
-// changerait, mais en pratique le rendu est « Mardi 22 juillet », sans heure.
+// Trois cas, par ordre de fiabilité décroissante :
+//  1. Chaîne linéaire (HBO, ABC, BBC…) : TVmaze fournit `airtime` + `airstamp`,
+//     un instant UTC réel. Conversion directe vers Paris — heure EXACTE.
+//  2. Plateforme (Apple TV+, Netflix…) : l'heure de diffusion n'existe nulle part,
+//     aucune API ne l'expose. TVmaze remplit alors `airstamp` à midi UTC — valeur
+//     factice, à ne jamais afficher. On DÉRIVE l'heure de la convention plateforme
+//     (mise en ligne à 00h00 heure du Pacifique) — heure APPROCHÉE mais fiable.
+//  3. Rien d'autre qu'une date : on n'affiche pas d'heure.
 
 const PARIS = 'Europe/Paris'
+const PACIFIC = 'America/Los_Angeles'
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
 
 /**
@@ -64,7 +69,7 @@ export function formatAirDate(airDate, now = new Date()) {
   const days = daysUntil(date, now)
   const time = DATE_ONLY.test(airDate)
     ? null
-    : formatParis(date, { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')
+    : formatParis(date, { hour: 'numeric', minute: '2-digit' }).replace(':', 'h')
 
   let label
   if (days === 0) label = "Aujourd'hui"
@@ -80,6 +85,89 @@ export function formatAirDate(airDate, now = new Date()) {
     text: time ? `${label} à ${time}` : label,
     isPast: days < 0,
   }
+}
+
+/** Décalage du fuseau `timeZone` par rapport à UTC, en ms, à l'instant `date`. */
+function tzOffsetMs(timeZone, date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date)
+  const p = Object.fromEntries(parts.map(x => [x.type, x.value]))
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second)
+  return asUtc - Math.floor(date.getTime() / 1000) * 1000
+}
+
+/**
+ * Instant réel correspondant à minuit heure du Pacifique le jour `dateStr`.
+ *
+ * Apple TV+ et Netflix mettent en ligne à 00h00 PT. C'est une convention de
+ * plateforme, pas une donnée d'API — mais elle est déterministe. En passant par une
+ * vraie conversion de fuseau plutôt qu'un décalage codé en dur, les changements
+ * d'heure se gèrent seuls : ça tombe sur 9h00 à Paris quasiment toute l'année, et
+ * sur 8h00 pendant les deux semaines de mars où les États-Unis basculent avant l'Europe.
+ * @param {string} dateStr  « AAAA-MM-JJ »
+ */
+function pacificMidnight(dateStr) {
+  const guess = new Date(`${dateStr}T00:00:00Z`)
+  if (Number.isNaN(guess.getTime())) return null
+  return new Date(guess.getTime() - tzOffsetMs(PACIFIC, guess))
+}
+
+/**
+ * @typedef {object} NextEpisodeInfo
+ * @property {'linear'|'streaming'|null} kind
+ * @property {?string} airdate   « AAAA-MM-JJ »
+ * @property {?string} airtime   Heure de la chaîne, vide pour les plateformes.
+ * @property {?string} airstamp  Instant ISO — factice si airtime est vide.
+ */
+
+/**
+ * Résout l'instant de diffusion et sa fiabilité.
+ * @param {NextEpisodeInfo} info
+ * @returns {{ date: Date, exact: boolean } | { date: Date, exact: null } | null}
+ *   `exact: true` = heure réelle · `false` = heure dérivée de la plateforme · `null` = pas d'heure.
+ */
+function resolveAirInstant({ kind, airdate, airtime, airstamp }) {
+  // Chaîne linéaire : airstamp est un vrai instant, mais seulement si airtime est
+  // renseigné. Sans airtime, TVmaze a rempli airstamp à midi UTC — ça ne vaut rien.
+  if (airtime && airstamp) {
+    const date = new Date(airstamp)
+    if (!Number.isNaN(date.getTime())) return { date, exact: true }
+  }
+  if (kind === 'streaming' && airdate) {
+    const date = pacificMidnight(airdate)
+    if (date) return { date, exact: false }
+  }
+  const date = parseAirDate(airdate)
+  return date ? { date, exact: null } : null
+}
+
+/**
+ * Formate le prochain épisode pour affichage.
+ * @param {NextEpisodeInfo} info
+ * @param {Date} [now]  Injectable pour les tests.
+ * @returns {{ label: string, time: ?string, exact: ?boolean, days: number, isPast: boolean } | null}
+ */
+export function formatNextEpisode(info, now = new Date()) {
+  const resolved = info && resolveAirInstant(info)
+  if (!resolved) return null
+
+  const { date, exact } = resolved
+  const days = daysUntil(date, now)
+
+  let label
+  if (days === 0) label = "Aujourd'hui"
+  else if (days === 1) label = 'Demain'
+  else if (days > 1 && days < 7) label = capitalize(formatParis(date, { weekday: 'long', day: 'numeric', month: 'long' }))
+  else label = capitalize(formatParis(date, { day: 'numeric', month: 'long', year: 'numeric' }))
+
+  const time = exact === null
+    ? null
+    : formatParis(date, { hour: 'numeric', minute: '2-digit' }).replace(':', 'h')
+
+  return { label, time, exact, days, isPast: days < 0 }
 }
 
 /**

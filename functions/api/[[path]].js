@@ -32,6 +32,44 @@ const tmdb = (env) => ({
   }
 })
 
+// ── TVmaze : source de vérité pour les dates/heures de diffusion ──
+// TMDB ne fournit qu'une date, et elle est fausse d'un jour sur les séries Apple TV+
+// (vérifié sur Silo S2 : TMDB annonce jeudi, Apple a diffusé le vendredi — les 10
+// épisodes sont décalés). TVmaze donne la bonne date, et l'instant exact pour les
+// chaînes linéaires. Pas de clé d'API, pas d'auth.
+//
+// Frontière nette : TVmaze ne sert QUE pour les dates/heures de diffusion. TMDB
+// reste la source pour tout le reste (fiches, posters, casting, recommandations).
+const TVMAZE = 'https://api.tvmaze.com'
+
+const tvmazeJson = async (path) => {
+  // Le lookup répond en 301 vers /shows/{id} — fetch() suit la redirection.
+  // Une série inconnue de TVmaze renvoie 404 : on retourne null, l'appelant retombe sur TMDB.
+  const res = await fetch(`${TVMAZE}${path}`)
+  return res.ok ? res.json() : null
+}
+
+// Résout l'id TVmaze depuis l'imdb_id fourni par TMDB, et le met en cache sur Media
+// (le mapping est stable : une fois résolu, on ne le recalcule jamais).
+async function resolveTvmazeId(c, tmdbId, media) {
+  if (media?.tvmazeId) return media.tvmazeId
+  const ext = await tmdb(c.env).get(`/tv/${tmdbId}/external_ids`)
+  if (!ext?.imdb_id) return null
+  const show = await tvmazeJson(`/lookup/shows?imdb=${ext.imdb_id}`)
+  if (!show) return null
+  if (media) {
+    await c.env.DB.prepare('UPDATE Media SET tvmazeId = ? WHERE id = ?').bind(show.id, media.id).run()
+  }
+  return show.id
+}
+
+// Une série de chaîne (`network`) a une heure de diffusion réelle. Une série de
+// plateforme (`webChannel`) n'en a pas : TVmaze remplit alors `airstamp` à midi UTC,
+// valeur factice qu'il ne faut JAMAIS afficher comme une heure. Le client dérive
+// l'heure de mise en ligne depuis la convention plateforme (minuit heure du Pacifique).
+const showKind = (show) => (show?.network ? 'linear' : 'streaming')
+const showChannel = (show) => (show?.network || show?.webChannel || {})?.name || null
+
 app.get('/tmdb/search', async (c) => {
   const q = c.req.query('q')
   if (!q) return c.json({ error: 'Query required' }, 400)
@@ -191,6 +229,37 @@ app.delete('/watchlist/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+// ── PROCHAIN ÉPISODE (dates TVmaze) ───────────────────────
+// Volontairement indépendant de la synchro : le badge doit s'afficher même sur une
+// série qu'on vient de découvrir. Renvoie null si TVmaze ne connaît pas la série —
+// le client retombe alors sur next_episode_to_air de TMDB.
+app.get('/tv/:tmdbId/next-episode', async (c) => {
+  const tmdbId = Number(c.req.param('tmdbId'))
+  try {
+    const media = await c.env.DB.prepare('SELECT id, tvmazeId FROM Media WHERE tmdbId = ?').bind(tmdbId).first()
+    const showId = await resolveTvmazeId(c, tmdbId, media)
+    if (!showId) return c.json(null)
+
+    const show = await tvmazeJson(`/shows/${showId}?embed=nextepisode`)
+    const next = show?._embedded?.nextepisode
+    if (!next) return c.json(null)
+
+    return c.json({
+      kind: showKind(show),
+      channel: showChannel(show),
+      season: next.season,
+      episode: next.number,
+      name: next.name || null,
+      airdate: next.airdate,
+      // airtime vide ⇒ pas d'heure réelle (plateforme). airstamp ne vaut alors rien.
+      airtime: next.airtime || null,
+      airstamp: next.airstamp || null,
+    })
+  } catch {
+    return c.json(null) // TVmaze indisponible : repli silencieux sur TMDB
+  }
+})
+
 // ── EPISODES ──────────────────────────────────────────────
 app.get('/episodes/:tmdbId', async (c) => {
   const media = await c.env.DB.prepare('SELECT * FROM Media WHERE tmdbId = ?').bind(Number(c.req.param('tmdbId'))).first()
@@ -237,6 +306,8 @@ app.post('/episodes/sync/:tmdbId', async (c) => {
   )
   if (episodeStatements.length > 0) await batchChunked(c.env.DB, episodeStatements)
 
+  await enrichWithTvmaze(c, media, seasonsToSync, seasonDataList, seasonIdByNumber)
+
   const { results: seasons } = await c.env.DB.prepare('SELECT * FROM Season WHERE mediaId = ? ORDER BY seasonNumber').bind(media.id).all()
   for (const season of seasons) {
     const { results: episodes } = await c.env.DB.prepare('SELECT * FROM Episode WHERE seasonId = ? ORDER BY episodeNumber').bind(season.id).all()
@@ -244,6 +315,49 @@ app.post('/episodes/sync/:tmdbId', async (c) => {
   }
   return c.json(seasons)
 })
+
+// Corrige les dates TMDB avec celles de TVmaze et ajoute l'instant exact (airstamp).
+//
+// Garde-fou : une saison n'est enrichie que si les deux sources sont d'accord sur le
+// NOMBRE d'épisodes. TVmaze et TMDB numérotent parfois différemment (épisodes doubles,
+// spéciaux) ; en cas de désaccord on collerait la date du mauvais épisode sur le bon.
+// Mieux vaut ne rien faire et rester sur TMDB pour cette saison-là.
+//
+// Best-effort : toute erreur TVmaze est avalée. La synchro TMDB a déjà réussi à ce
+// stade, elle ne doit pas échouer parce qu'une source secondaire est indisponible.
+async function enrichWithTvmaze(c, media, seasonsToSync, seasonDataList, seasonIdByNumber) {
+  try {
+    const showId = await resolveTvmazeId(c, media.tmdbId, media)
+    if (!showId) return
+
+    const tvEpisodes = await tvmazeJson(`/shows/${showId}/episodes`)
+    if (!tvEpisodes?.length) return
+
+    const bySeason = new Map()
+    for (const ep of tvEpisodes) {
+      if (!bySeason.has(ep.season)) bySeason.set(ep.season, [])
+      bySeason.get(ep.season).push(ep)
+    }
+
+    const statements = []
+    seasonsToSync.forEach((s, i) => {
+      const tmdbCount = (seasonDataList[i].episodes || []).length
+      const tvList = bySeason.get(s.season_number) || []
+      if (tvList.length !== tmdbCount) return // numérotation divergente → on saute cette saison
+
+      const seasonId = seasonIdByNumber[s.season_number]
+      for (const ep of tvList) {
+        statements.push(c.env.DB.prepare(
+          'UPDATE Episode SET airDate = ?, airstamp = ? WHERE seasonId = ? AND episodeNumber = ?'
+        ).bind(ep.airdate, ep.airstamp, seasonId, ep.number))
+      }
+    })
+
+    if (statements.length > 0) await batchChunked(c.env.DB, statements)
+  } catch {
+    // TVmaze indisponible : on garde les dates TMDB, rien n'est cassé.
+  }
+}
 
 app.patch('/episodes/:episodeId/watch', async (c) => {
   const { watched } = await c.req.json()

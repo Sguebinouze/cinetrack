@@ -33,6 +33,9 @@ export const episodesApi = {
   // Ne coche que les épisodes déjà diffusés ; décocher ne filtre rien.
   watchAllSeason: (seasonId, watched) => api.post(`/seasons/${seasonId}/watch-all`, { watched }).then(r => r.data),
   watchAllSeries: (tmdbId, watched) => api.post(`/series/${tmdbId}/watch-all`, { watched }).then(r => r.data),
+  // Dates de diffusion TVmaze — plus justes que TMDB, qui se trompe d'un jour sur
+  // les séries Apple TV+. Renvoie null si TVmaze ne connaît pas la série.
+  nextEpisode: (tmdbId) => api.get(`/tv/${tmdbId}/next-episode`).then(r => r.data),
 }
 
 export const listsApi = {

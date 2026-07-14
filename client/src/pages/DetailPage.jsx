@@ -413,8 +413,8 @@ export default function DetailPage() {
           <p className="text-sm text-text-sec leading-relaxed mb-5">{detail.overview}</p>
         )}
 
-        {/* Prochain épisode — ne s'affiche que si TMDB en annonce un (série en cours) */}
-        {type === 'tv' && <NextEpisodeBadge detail={detail} />}
+        {/* Prochain épisode — dates TVmaze, repli TMDB. Masqué si rien n'est programmé. */}
+        {type === 'tv' && <NextEpisodeBadge tmdbId={id} detail={detail} />}
 
         {/* Statut */}
         <div className="mb-5">
@@ -506,7 +506,7 @@ export default function DetailPage() {
               <button
                 onClick={() => bulkWatchMutation.mutate({ watched: !allAiredWatched })}
                 disabled={bulkWatchMutation.isPending}
-                className="w-full flex items-center justify-center gap-2 mb-4 py-2.5 rounded-xl border border-border text-xs font-medium text-text-sec active:bg-white/5 disabled:opacity-50 transition-colors"
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 mb-4 py-2.5 rounded-xl border border-border text-xs font-medium text-text-sec active:bg-white/5 disabled:opacity-50 transition-colors"
               >
                 {seriesBulkPending
                   ? <Loader size={14} className="animate-spin text-gold" />
@@ -545,7 +545,10 @@ export default function DetailPage() {
                       onClick={() => bulkWatchMutation.mutate({ seasonId: season.id, watched: !seasonAllWatched })}
                       disabled={bulkWatchMutation.isPending}
                       aria-label={`${seasonAllWatched ? 'Tout décocher' : 'Tout marquer comme vu'} — ${label}`}
-                      className={`w-11 h-11 flex items-center justify-center flex-shrink-0 active:bg-white/5 disabled:opacity-40 transition-colors ${seasonAllWatched ? 'text-green' : 'text-text-dim'}`}
+                      // Bordure à gauche : sépare visuellement l'action en masse du repli.
+                      // Sans elle, viser le chevron au pouce et toucher ✓✓ cocherait
+                      // toute la saison par accident.
+                      className={`w-11 h-11 flex items-center justify-center flex-shrink-0 border-l border-border active:bg-white/5 disabled:opacity-40 transition-colors ${seasonAllWatched ? 'text-green' : 'text-text-sec'}`}
                     >
                       {seasonPending
                         ? <Loader size={16} className="animate-spin text-gold" />

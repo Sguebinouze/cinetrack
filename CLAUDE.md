@@ -55,9 +55,26 @@ Un `Episode` n'a **ni `mediaId` ni id TMDB** : on y accède uniquement via `Epis
 ## TMDB
 
 Les routes `/api/tmdb/*` sont un **proxy live** (aucun cache, aucun TTL), `language=fr-FR`, clé dans `c.env.TMDB_API_KEY` / `.env`.
-`GET /tv/:id` renvoie la réponse TMDB **complète** : `next_episode_to_air`, `last_episode_to_air`, `status` (`'Returning Series'`, `'Ended'`, `'Canceled'`…) sont donc déjà disponibles côté client sans changement backend.
+`GET /tv/:id` renvoie la réponse TMDB **complète** : `next_episode_to_air`, `last_episode_to_air`, `status` (`'Returning Series'`, `'Ended'`, `'Canceled'`…) sont donc disponibles côté client sans changement backend.
 
-⚠️ **TMDB ne fournit jamais l'heure de diffusion**, seulement une date (`"2026-07-22"`). Ne pas promettre un « à 21h00 » : `airDate.js` gère un ISO complet au cas où, mais en pratique l'heure est absente.
+## Dates de diffusion : TVmaze fait autorité, pas TMDB
+
+Répartition des rôles, à ne pas mélanger :
+- **TVmaze** → dates et heures de diffusion, **uniquement**.
+- **TMDB** → tout le reste (fiches, posters, casting, recommandations, plateformes).
+
+Deux faits vérifiés qui justifient cette frontière :
+
+1. ⚠️ **TMDB se trompe d'un jour sur les séries Apple TV+.** Vérifié sur les 10 épisodes de Silo S2 : TMDB annonce jeudi, Apple a diffusé le vendredi ([communiqué Apple](https://www.apple.com/tv-pr/news/2024/10/apple-tv-unveils-trailer-for-second-season-of-globally-acclaimed-hit-drama-silo/)). Ce n'est pas ponctuel, c'est systématique.
+2. ⚠️ **Aucune API ne connaît l'heure de diffusion d'une série de plateforme.** TVmaze remplit alors `airstamp` à **midi UTC — valeur factice**. Ne JAMAIS l'afficher comme une heure. Le discriminant est `airtime` : non vide ⇒ chaîne linéaire, heure réelle ; vide ⇒ plateforme, pas d'heure.
+
+Conséquence pour l'affichage (`client/src/utils/airDate.js`) :
+- **Chaîne linéaire** (`network` non nul, `airtime` renseigné) → `airstamp` est un vrai instant → conversion directe vers Paris → « à 3h00 ». Heure exacte.
+- **Plateforme** (`webChannel`) → l'heure est **dérivée** de la convention (mise en ligne à 00h00 heure du Pacifique) → « à partir de 9h00 ». On passe par une vraie conversion `America/Los_Angeles` → `Europe/Paris`, jamais un décalage codé en dur : les changements d'heure se gèrent seuls (9h toute l'année, 8h pendant deux semaines en mars).
+
+Détails d'intégration TVmaze : pas de clé d'API, ~20 req/10s. Le pont se fait via `imdb_id` (TMDB `/external_ids`) → `/lookup/shows?imdb=…`, qui **répond en 301** (`fetch()` suit, `curl` a besoin de `-L`). L'id TVmaze est mis en cache dans `Media.tvmazeId`, jamais recalculé.
+
+**Garde-fou de la synchro** : une saison n'est enrichie que si TMDB et TVmaze sont d'accord sur le **nombre d'épisodes**. Les numérotations divergent parfois (épisodes doubles, spéciaux) et on collerait la date du mauvais épisode. En cas de désaccord, on ne touche pas à la saison et TMDB fait foi. Tout l'enrichissement est best-effort : une panne TVmaze ne doit jamais faire échouer une synchro.
 
 ## Commandes
 
