@@ -1,0 +1,17 @@
+# App perso — ne doit apparaître dans aucun moteur de recherche.
+#
+# ⚠️ Piège contre-intuitif : on n'écrit PAS « Disallow: / » ici.
+# Un Disallow empêche le robot de CHARGER la page — il ne verrait donc jamais le
+# noindex (en-tête X-Robots-Tag + balise meta), et Google peut malgré tout indexer
+# l'URL seule à partir d'un lien externe (« page bloquée par robots.txt »).
+# C'est le noindex qui garantit l'absence des résultats, et pour être vu il faut
+# laisser le robot charger les pages. Les deux mécanismes se complètent, ils ne
+# se remplacent pas.
+#
+# L'API n'a en revanche aucune raison d'être explorée : rien à indexer, et ça
+# évite qu'un robot promène ta liste dans ses journaux.
+
+User-agent: *
+Disallow: /api/
+
+# Aucun plan du site : rien ici n'a vocation à être découvert.

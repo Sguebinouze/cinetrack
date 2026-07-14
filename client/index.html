@@ -16,6 +16,12 @@
     <meta name="theme-color" content="#0B0D13" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="dark" />
 
+    <!-- App perso : jamais dans les résultats de recherche.
+         Doublon volontaire de l'en-tête X-Robots-Tag de client/public/_headers —
+         si un jour l'app est servie ailleurs que par Cloudflare Pages, l'en-tête
+         disparaît mais cette balise, elle, part avec le HTML. -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- manifest + script d'enregistrement du Service Worker injectés automatiquement au build par vite-plugin-pwa -->
 

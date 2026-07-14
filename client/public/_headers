@@ -1,0 +1,16 @@
+# En-têtes Cloudflare Pages. Vite copie ce fichier tel quel de public/ vers dist/,
+# et Pages le lit à la racine du déploiement.
+
+/*
+  # App perso : jamais dans les résultats de recherche.
+  # X-Robots-Tag est plus fort que la balise <meta> : il s'applique à TOUTES les
+  # réponses (JSON de l'API, images, manifeste), pas seulement au HTML.
+  #   noindex   — n'apparaît dans aucun index
+  #   nofollow  — les liens sortants ne sont pas suivis
+  #   noarchive — pas de version en cache consultable
+  #   nosnippet — aucun extrait affiché
+  X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+
+  # L'app n'a aucune raison d'être affichée dans une iframe tierce.
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
