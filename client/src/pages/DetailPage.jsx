@@ -7,6 +7,7 @@ import StarRating from '../components/StarRating'
 import StatusPicker from '../components/StatusPicker'
 import MediaCard from '../components/MediaCard'
 import NextEpisodeBadge from '../components/NextEpisodeBadge'
+import EpisodeSlider from '../components/EpisodeSlider'
 import { useToast } from '../hooks/useToast'
 import { isAired } from '../utils/airDate'
 
@@ -224,6 +225,14 @@ export default function DetailPage() {
   // en mode « Tout décocher » une fois la série rattrapée.
   const airedEpisodes = seasons.flatMap(s => s.episodes).filter(ep => isAired(ep))
   const allAiredWatched = airedEpisodes.length > 0 && airedEpisodes.every(ep => ep.watched)
+
+  // « À voir » : les prochains épisodes non-vus déjà diffusés, dans l'ordre.
+  // Un épisode à venir n'est jamais « à voir » (cf. progress.js), d'où isAired.
+  const upcomingToWatch = seasons
+    .flatMap(s => s.episodes.map(ep => ({ ...ep, seasonNumber: s.seasonNumber })))
+    .filter(ep => !ep.watched && isAired(ep))
+    .sort((a, b) => a.seasonNumber - b.seasonNumber || a.episodeNumber - b.episodeNumber)
+    .slice(0, 10)
   const seriesBulkPending = bulkWatchMutation.isPending && !bulkWatchMutation.variables?.seasonId
 
   const isMutating = addMutation.isPending || updateMutation.isPending
@@ -499,6 +508,15 @@ export default function DetailPage() {
                   style={{ width: `${(watchedEpisodes / totalEpisodes) * 100}%` }}
                 />
               </div>
+            )}
+
+            {/* Bandeau « À voir » : reprends où tu en es, résumé au tap. */}
+            {upcomingToWatch.length > 0 && (
+              <EpisodeSlider
+                tmdbId={id}
+                upcoming={upcomingToWatch}
+                onToggleWatched={(epId, watched) => episodeMutation.mutate({ epId, watched })}
+              />
             )}
 
             {/* Action en masse sur toute la série (épisodes diffusés uniquement) */}
