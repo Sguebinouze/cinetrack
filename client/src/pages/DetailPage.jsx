@@ -376,6 +376,11 @@ export default function DetailPage() {
           </div>
         )}
 
+        {/* Synopsis — avant les plateformes : « c'est quoi » avant « où le voir ». */}
+        {detail.overview && (
+          <p className="text-sm text-text-sec leading-relaxed mb-5">{detail.overview}</p>
+        )}
+
         {/* Plateformes disponibles (France) */}
         {watchProviders && (watchProviders.flatrate?.length > 0 || watchProviders.ads?.length > 0 || watchProviders.buy?.length > 0 || watchProviders.rent?.length > 0) && (
           <div className="mb-4 space-y-3">
@@ -415,11 +420,6 @@ export default function DetailPage() {
               </div>
             )}
           </div>
-        )}
-
-        {/* Synopsis */}
-        {detail.overview && (
-          <p className="text-sm text-text-sec leading-relaxed mb-5">{detail.overview}</p>
         )}
 
         {/* Prochain épisode — dates TVmaze, repli TMDB. Masqué si rien n'est programmé. */}
@@ -487,44 +487,6 @@ export default function DetailPage() {
             </div>
           </div>
         )}
-
-        {/* Note */}
-        <div className="mb-5">
-          <h3 className="text-xs text-text-dim uppercase tracking-widest mb-3">Ma note</h3>
-          <StarRating value={entry?.rating || 0} onChange={handleRating} />
-        </div>
-
-        {/* Avis privé */}
-        <div className="mb-5">
-          <button
-            onClick={() => {
-              setShowReview(v => !v)
-              if (!showReview && entry?.reviewPrivate) setReviewText(entry.reviewPrivate)
-            }}
-            className="flex items-center gap-2 text-xs text-text-dim uppercase tracking-widest mb-3 w-full"
-          >
-            <span>Mon avis privé</span>
-            {entry?.reviewPrivate && <span className="text-gold text-[10px] normal-case tracking-normal">— enregistré</span>}
-            {showReview ? <ChevronUp size={14} className="ml-auto" /> : <ChevronDown size={14} className="ml-auto" />}
-          </button>
-          {showReview && (
-            <div>
-              <textarea
-                value={reviewText}
-                onChange={e => setReviewText(e.target.value)}
-                placeholder="Tes pensées sur ce titre (visible uniquement par toi)…"
-                rows={4}
-                className="w-full bg-card border border-border rounded-xl p-3 text-sm text-text-primary placeholder:text-text-dim resize-none outline-none focus:border-gold/50 transition-colors"
-              />
-              <button
-                onClick={handleReviewSave}
-                className="mt-2 text-sm text-gold font-medium active:opacity-70"
-              >
-                Enregistrer l'avis
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Épisodes (séries uniquement) */}
         {type === 'tv' && (
@@ -675,13 +637,55 @@ export default function DetailPage() {
           </div>
         )}
 
+        {/* Note + avis : « opinion », après le suivi (état + épisodes). Noter/écrire
+            un avis sont des gestes de fin de parcours, pas de milieu de visionnage. */}
+        <div className="mb-5">
+          <h3 className="text-xs text-text-dim uppercase tracking-widest mb-3">Ma note</h3>
+          <StarRating value={entry?.rating || 0} onChange={handleRating} />
+        </div>
+
+        <div className="mb-5">
+          <button
+            onClick={() => {
+              setShowReview(v => !v)
+              if (!showReview && entry?.reviewPrivate) setReviewText(entry.reviewPrivate)
+            }}
+            className="flex items-center gap-2 text-xs text-text-dim uppercase tracking-widest mb-3 w-full"
+          >
+            <span>Mon avis privé</span>
+            {entry?.reviewPrivate && <span className="text-gold text-[10px] normal-case tracking-normal">— enregistré</span>}
+            {showReview ? <ChevronUp size={14} className="ml-auto" /> : <ChevronDown size={14} className="ml-auto" />}
+          </button>
+          {showReview && (
+            <div>
+              <textarea
+                value={reviewText}
+                onChange={e => setReviewText(e.target.value)}
+                placeholder="Tes pensées sur ce titre (visible uniquement par toi)…"
+                rows={4}
+                className="w-full bg-card border border-border rounded-xl p-3 text-sm text-text-primary placeholder:text-text-dim resize-none outline-none focus:border-gold/50 transition-colors"
+              />
+              <button
+                onClick={handleReviewSave}
+                className="mt-2 text-sm text-gold font-medium active:opacity-70"
+              >
+                Enregistrer l'avis
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Casting */}
         {cast.length > 0 && (
           <div className="mb-4">
             <h3 className="text-xs text-text-dim uppercase tracking-widest mb-3">Casting</h3>
             <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
               {cast.map(person => (
-                <div key={person.id} className="flex-shrink-0 text-center w-16">
+                <button
+                  key={person.id}
+                  onClick={() => navigate(`/person/${person.id}`)}
+                  className="flex-shrink-0 text-center w-16 active:opacity-70 transition-opacity"
+                >
                   <div className="w-14 h-14 rounded-full overflow-hidden bg-card mx-auto mb-1 border border-border">
                     {person.profile_path
                       ? <img src={TMDB_IMAGE(person.profile_path, 'w185')} alt={person.name} className="w-full h-full object-cover" />
@@ -690,7 +694,7 @@ export default function DetailPage() {
                   </div>
                   <div className="text-[10px] text-text-sec leading-tight line-clamp-2">{person.name}</div>
                   <div className="text-[9px] text-text-dim leading-tight line-clamp-1 mt-0.5">{person.character}</div>
-                </div>
+                </button>
               ))}
             </div>
           </div>

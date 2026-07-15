@@ -60,6 +60,12 @@
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
+  /* En-tête de page : marge haute (1rem) TOUJOURS présente, augmentée de l'encoche
+     s'il y en a une. À utiliser à la place de `safe-top pt-4` : combiner les deux
+     ne marche pas, elles définissent toutes deux padding-top et s'écrasent. */
+  .pt-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+  }
   .pb-nav {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }

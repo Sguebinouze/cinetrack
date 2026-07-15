@@ -59,7 +59,7 @@ export default function WatchlistPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="safe-top px-4 pt-4 bg-bg sticky top-0 z-10 border-b border-border/50">
+      <div className="pt-header px-4 bg-bg sticky top-0 z-10 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
           <div className="min-w-0">
             <h1 className="font-serif text-xl text-text-primary">Ma liste</h1>

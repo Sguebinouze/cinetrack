@@ -49,13 +49,29 @@ router.get('/tv/:id/season/:season', async (req, res) => {
   }
 })
 
+router.get('/person/:id', async (req, res) => {
+  try {
+    const data = await tmdb.getPerson(req.params.id)
+    res.json(data)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 router.get('/discover/:mediaType', async (req, res) => {
   try {
     if (!['movie', 'tv'].includes(req.params.mediaType)) return res.status(400).json({ error: 'Invalid mediaType' })
-    const { genre, maxRuntime } = req.query
+    const { genre, maxRuntime, streaming } = req.query
     const params = { sort_by: 'popularity.desc', 'vote_count.gte': 50 }
     if (genre) params.with_genres = genre
     if (maxRuntime) params['with_runtime.lte'] = maxRuntime
+    // streaming=1 : ne garder que les titres dispo sur une plateforme en France
+    // (toute source : abonnement, gratuit, location ou achat). Écarte de fait les
+    // films encore au cinéma, qui n'ont aucune disponibilité en ligne.
+    if (streaming) {
+      params.watch_region = 'FR'
+      params.with_watch_monetization_types = 'flatrate|free|ads|rent|buy'
+    }
     const data = await tmdb.discover(req.params.mediaType, params)
     res.json(data.results || [])
   } catch (e) {

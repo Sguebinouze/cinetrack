@@ -7,6 +7,7 @@ import SearchPage from './pages/SearchPage'
 import WatchlistPage from './pages/WatchlistPage'
 import ProfilePage from './pages/ProfilePage'
 import DetailPage from './pages/DetailPage'
+import PersonPage from './pages/PersonPage'
 import JournalPage from './pages/JournalPage'
 import WrappedPage from './pages/WrappedPage'
 import UpdateNotification from './components/UpdateNotification'
@@ -40,7 +41,7 @@ const persister = createSyncStoragePersister({
 // On exclut volontairement 'search'/'trending' : résultats TMDB temps réel,
 // aucune valeur à rejouer offline et ça gonflerait le cache pour rien.
 const PERSISTED_QUERY_PREFIXES = [
-  'watchlist', 'stats', 'seasons', 'lists', 'journal', 'wrapped', 'detail', 'next-episode', 'tmdb-season',
+  'watchlist', 'stats', 'seasons', 'lists', 'journal', 'wrapped', 'detail', 'next-episode', 'tmdb-season', 'person',
 ]
 
 export default function App() {
@@ -71,6 +72,7 @@ export default function App() {
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/journal" element={<JournalPage />} />
                 <Route path="/wrapped" element={<WrappedPage />} />
+                <Route path="/person/:id" element={<PersonPage />} />
                 <Route path="/:type/:id" element={<DetailPage />} />
               </Routes>
             </main>

@@ -12,6 +12,7 @@ export const tmdbApi = {
   movie: (id) => api.get(`/tmdb/movie/${id}`).then(r => r.data),
   tv: (id) => api.get(`/tmdb/tv/${id}`).then(r => r.data),
   tvSeason: (id, season) => api.get(`/tmdb/tv/${id}/season/${season}`).then(r => r.data),
+  person: (id) => api.get(`/tmdb/person/${id}`).then(r => r.data),
   recommendations: (mediaType, id) => api.get(`/tmdb/${mediaType}/${id}/recommendations`).then(r => r.data),
   watchProviders: (mediaType, id) => api.get(`/tmdb/${mediaType}/${id}/watch-providers`).then(r => r.data),
   discover: (mediaType, params) => api.get(`/tmdb/discover/${mediaType}`, { params }).then(r => r.data),

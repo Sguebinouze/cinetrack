@@ -19,7 +19,7 @@ export default function WrappedPage() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto scrollbar-none pb-nav">
-      <div className="safe-top px-4 pt-4 pb-3 bg-bg sticky top-0 z-10 border-b border-border/50 flex items-center gap-3">
+      <div className="pt-header px-4 pb-3 bg-bg sticky top-0 z-10 border-b border-border/50 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center -ml-1">
           <ChevronLeft size={20} className="text-text-primary" />
         </button>

@@ -28,6 +28,29 @@ const durationOptions = [
   { key: null, label: 'Peu importe' },
 ]
 
+// Films dispo sur une plateforme en France (streaming) — écarte les sorties ciné.
+// On tague `media_type` : /discover ne le renvoie pas, mais l'onglet « Tout » en a besoin.
+const streamingMovies = () =>
+  tmdbApi.discover('movie', { streaming: 1 }).then(list => list.map(m => ({ ...m, media_type: 'movie' })))
+
+// Un anime = animation (genre 16) d'origine japonaise. L'animation occidentale
+// (Rick et Morty, X-Men '97) n'en est pas et reste dans « Tout ».
+const isAnimeItem = (item) =>
+  (item.genre_ids || []).includes(16) && (item.origin_country || []).includes('JP')
+
+// Source des « Tendances » de Découvrir. Les films sont filtrés sur le streaming
+// (onglets Films ET Tout) ; séries et anime restent en tendance brute. « Tout »
+// fusionne films-streaming + séries (triés par popularité) mais EXCLUT les anime :
+// ils ont leur propre onglet.
+async function fetchDiscover(filter) {
+  if (filter === 'anime') return tmdbApi.animeTrending()
+  if (filter === 'movie') return streamingMovies()
+  if (filter === 'tv') return tmdbApi.trending('tv', 'week')
+  const [movies, series] = await Promise.all([streamingMovies(), tmdbApi.trending('tv', 'week')])
+  return [...movies, ...series.filter(s => !isAnimeItem(s))]
+    .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+}
+
 export default function SearchPage() {
   const [query, setQuery] = useState('')
   const [trendingFilter, setTrendingFilter] = useState('all')
@@ -44,7 +67,7 @@ export default function SearchPage() {
 
   const { data: trending = [], isLoading: isTrendingLoading, isError: trendingError } = useQuery({
     queryKey: ['trending', trendingFilter],
-    queryFn: () => trendingFilter === 'anime' ? tmdbApi.animeTrending() : tmdbApi.trending(trendingFilter, 'week'),
+    queryFn: () => fetchDiscover(trendingFilter),
     staleTime: 1000 * 60 * 10,
   })
 
@@ -100,7 +123,7 @@ export default function SearchPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="safe-top px-4 pt-4 pb-3 bg-bg sticky top-0 z-10 border-b border-border/50">
+      <div className="pt-header px-4 pb-3 bg-bg sticky top-0 z-10 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
           <h1 className="font-serif text-xl text-text-primary">Découvrir</h1>
           <button

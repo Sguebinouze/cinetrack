@@ -87,7 +87,7 @@ export default function ProfilePage() {
   return (
     <div className="flex flex-col h-full overflow-y-auto scrollbar-none pb-nav">
       {/* Identité */}
-      <div className="safe-top bg-surface border-b border-border px-4 pt-6 pb-6">
+      <div className="bg-surface border-b border-border px-4 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] pb-6">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-gold/30 to-gold-dim/20 border border-gold/20 flex items-center justify-center flex-shrink-0">
             <Award size={28} className="text-gold" strokeWidth={1.5} />

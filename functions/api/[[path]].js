@@ -97,9 +97,16 @@ app.get('/tmdb/discover/:mediaType', async (c) => {
   if (!['movie', 'tv'].includes(mediaType)) return c.json({ error: 'Invalid mediaType' }, 400)
   const genre = c.req.query('genre')
   const maxRuntime = c.req.query('maxRuntime')
+  const streaming = c.req.query('streaming')
   const params = { sort_by: 'popularity.desc', 'vote_count.gte': 50, include_adult: false, without_keywords: EXCLUDED_KEYWORDS }
   if (genre) params.with_genres = genre
   if (maxRuntime) params['with_runtime.lte'] = maxRuntime
+  // streaming=1 : uniquement les titres dispo sur une plateforme en France (toute
+  // source). Écarte les films encore au cinéma, sans aucune disponibilité en ligne.
+  if (streaming) {
+    params.watch_region = 'FR'
+    params.with_watch_monetization_types = 'flatrate|free|ads|rent|buy'
+  }
   const data = await tmdb(c.env).get(`/discover/${mediaType}`, params)
   return c.json(excludeAdult(data.results))
 })
@@ -109,6 +116,8 @@ app.get('/tmdb/anime/trending', async (c) => {
     with_genres: 16,
     with_origin_country: 'JP',
     sort_by: 'popularity.desc',
+    // Plancher de votes : anime grand public seulement, pas les titres de niche.
+    'vote_count.gte': 200,
     include_adult: false,
     without_keywords: EXCLUDED_KEYWORDS,
   })
@@ -127,6 +136,11 @@ app.get('/tmdb/tv/:id', async (c) => {
 
 app.get('/tmdb/tv/:id/season/:season', async (c) => {
   const data = await tmdb(c.env).get(`/tv/${c.req.param('id')}/season/${c.req.param('season')}`)
+  return c.json(data)
+})
+
+app.get('/tmdb/person/:id', async (c) => {
+  const data = await tmdb(c.env).get(`/person/${c.req.param('id')}`, { append_to_response: 'combined_credits' })
   return c.json(data)
 })
 

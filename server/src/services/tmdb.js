@@ -42,6 +42,13 @@ async function getTvSeason(tmdbId, seasonNumber) {
   return data
 }
 
+async function getPerson(tmdbId) {
+  const { data } = await tmdb.get(`/person/${tmdbId}`, {
+    params: { append_to_response: 'combined_credits' },
+  })
+  return data
+}
+
 async function getTrending(mediaType = 'all', timeWindow = 'week') {
   const { data } = await tmdb.get(`/trending/${mediaType}/${timeWindow}`)
   return (data.results || []).filter(r => !r.adult)
@@ -72,6 +79,9 @@ async function getAnimeTrending() {
       with_genres: 16,
       with_origin_country: 'JP',
       sort_by: 'popularity.desc',
+      // Plancher de votes : ne garde que l'anime grand public, écarte les titres
+      // de niche/minimalistes (quelques dizaines de votes à peine).
+      'vote_count.gte': 200,
       include_adult: false,
       without_keywords: EXCLUDED_KEYWORDS,
     },
@@ -80,6 +90,6 @@ async function getAnimeTrending() {
 }
 
 module.exports = {
-  search, getMovieDetail, getTvDetail, getTvSeason, getTrending, discover,
+  search, getMovieDetail, getTvDetail, getTvSeason, getPerson, getTrending, discover,
   getRecommendations, getWatchProviders, getAnimeTrending,
 }
