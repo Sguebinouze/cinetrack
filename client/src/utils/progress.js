@@ -75,6 +75,17 @@ export function compareEntries(a, b) {
   return (b.updatedAt || '').localeCompare(a.updatedAt || '')
 }
 
+// Libellé + pastille de couleur d'un état déduit, pour l'afficher tel quel
+// (badge en lecture seule) au lieu de le laisser saisir. Couleurs = palette
+// sémantique de tailwind.config.js.
+export const STATE_META = {
+  [BEHIND]: { label: 'À suivre', dot: 'bg-gold' },
+  [NOT_STARTED]: { label: 'Pas commencé', dot: 'bg-blue' },
+  [UP_TO_DATE]: { label: 'À jour', dot: 'bg-green' },
+  [DONE]: { label: 'Terminé', dot: 'bg-green' },
+  [ARCHIVED]: { label: 'Abandonné', dot: 'bg-red' },
+}
+
 // Les trois onglets. « À suivre » regroupe tout ce qui est commencé et pas fini :
 // le tri met les séries à rattraper devant celles où l'on est à jour.
 export const TABS = [

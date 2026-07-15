@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Check, CheckCheck, Star, Clock, Film, Tv, ChevronDown, ChevronUp, Trash2, AlertCircle, Loader, ListPlus } from 'lucide-react'
+import { ChevronLeft, Check, CheckCheck, CheckCircle, Star, Clock, Film, Tv, ChevronDown, ChevronUp, Trash2, AlertCircle, Loader, ListPlus, Plus } from 'lucide-react'
 import { tmdbApi, watchlistApi, episodesApi, listsApi, TMDB_IMAGE } from '../services/api'
 import StarRating from '../components/StarRating'
-import StatusPicker from '../components/StatusPicker'
 import MediaCard from '../components/MediaCard'
 import NextEpisodeBadge from '../components/NextEpisodeBadge'
 import EpisodeSlider from '../components/EpisodeSlider'
 import { useToast } from '../hooks/useToast'
 import { isAired } from '../utils/airDate'
+import { deriveState, STATE_META } from '../utils/progress'
 
 /**
  * Rejoue localement une action en masse sur le cache des saisons, en reproduisant
@@ -425,14 +425,68 @@ export default function DetailPage() {
         {/* Prochain épisode — dates TVmaze, repli TMDB. Masqué si rien n'est programmé. */}
         {type === 'tv' && <NextEpisodeBadge tmdbId={id} detail={detail} />}
 
-        {/* Statut */}
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-xs text-text-dim uppercase tracking-widest">Statut</h3>
-            {isMutating && <Loader size={12} className="text-gold animate-spin" />}
+        {/* Série : l'état est DÉDUIT de la progression (cf. progress.js), on l'affiche
+            en lecture seule. Seul « abandonner » reste déclaratif. Film : aucun épisode
+            à lire, « vu / à voir » est la seule vérité disponible. */}
+        {type === 'tv' ? (
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-xs text-text-dim uppercase tracking-widest">État</h3>
+              {isMutating && <Loader size={12} className="text-gold animate-spin" />}
+            </div>
+            {entry ? (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border bg-card">
+                <span className="flex items-center gap-2 text-sm text-text-primary">
+                  <span className={`w-2 h-2 rounded-full ${STATE_META[deriveState(entry)].dot}`} />
+                  {STATE_META[deriveState(entry)].label}
+                </span>
+                <button
+                  onClick={() => updateMutation.mutate({ status: entry.status === 'dropped' ? 'watching' : 'dropped' })}
+                  disabled={updateMutation.isPending}
+                  className="text-xs font-medium text-text-sec active:opacity-70 disabled:opacity-50"
+                >
+                  {entry.status === 'dropped' ? 'Reprendre' : 'Abandonner'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => addMutation.mutate({ status: 'watchlist' })}
+                disabled={addMutation.isPending}
+                className="w-full min-h-[44px] flex items-center justify-center gap-2 py-3 rounded-xl bg-gold text-bg text-sm font-medium active:opacity-90 disabled:opacity-50"
+              >
+                <Plus size={16} />
+                Ajouter à ma liste
+              </button>
+            )}
           </div>
-          <StatusPicker value={entry?.status} onChange={handleStatus} />
-        </div>
+        ) : (
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-xs text-text-dim uppercase tracking-widest">Statut</h3>
+              {isMutating && <Loader size={12} className="text-gold animate-spin" />}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleStatus('watchlist')}
+                className={`flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl border text-sm font-medium active:scale-[0.98] ${
+                  entry && entry.status !== 'watched' ? 'text-blue border-blue/30 bg-blue/10' : 'text-text-sec border-border bg-card'
+                }`}
+              >
+                <Clock size={16} strokeWidth={1.8} />
+                À voir
+              </button>
+              <button
+                onClick={() => handleStatus('watched')}
+                className={`flex items-center justify-center gap-2 px-3.5 py-3 rounded-xl border text-sm font-medium active:scale-[0.98] ${
+                  entry?.status === 'watched' ? 'text-green border-green/30 bg-green/10' : 'text-text-sec border-border bg-card'
+                }`}
+              >
+                <CheckCircle size={16} strokeWidth={1.8} />
+                Vu
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Note */}
         <div className="mb-5">
