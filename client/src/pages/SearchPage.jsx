@@ -5,6 +5,7 @@ import { Search, X, TrendingUp, AlertCircle, Shuffle, Star } from 'lucide-react'
 import { tmdbApi, watchlistApi } from '../services/api'
 import { MOVIE_GENRES, TV_GENRES } from '../constants/genres'
 import MediaCard from '../components/MediaCard'
+import SheetBackdrop from '../components/SheetBackdrop'
 
 function useDebounce(value, delay = 400) {
   const [debounced, setDebounced] = useState(value)
@@ -233,8 +234,14 @@ export default function SearchPage() {
 
       {/* Quoi ce soir ? */}
       {showTonight && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
-          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm max-h-[80vh] overflow-y-auto scrollbar-none">
+        <SheetBackdrop
+          onClose={closeTonight}
+          className="px-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+        >
+          <div
+            className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm max-h-[85svh] overflow-y-auto overscroll-contain scrollbar-none"
+            onClick={e => e.stopPropagation()}
+          >
             <h3 className="font-serif text-lg text-text-primary mb-1">Quoi ce soir ?</h3>
             <p className="text-xs text-text-dim mb-4">Tirage au sort dans tout le catalogue TMDB</p>
 
@@ -346,7 +353,7 @@ export default function SearchPage() {
               )}
             </div>
           </div>
-        </div>
+        </SheetBackdrop>
       )}
     </div>
   )

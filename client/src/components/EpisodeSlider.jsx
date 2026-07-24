@@ -3,6 +3,7 @@ import { useQueries } from '@tanstack/react-query'
 import { Tv, Check, X, Clock, Star } from 'lucide-react'
 import { tmdbApi, TMDB_IMAGE } from '../services/api'
 import { formatAirDate } from '../utils/airDate'
+import SheetBackdrop from './SheetBackdrop'
 
 /**
  * Bandeau « À voir » : slider horizontal des prochains épisodes non-vus déjà
@@ -94,61 +95,64 @@ function EpisodeSheet({ episode, loading, onClose, onMarkWatched }) {
   const air = episode.airDate ? formatAirDate(episode.airDate) : null
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <SheetBackdrop onClose={onClose}>
       <div
-        className="bg-surface border-t border-border rounded-t-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto scrollbar-none"
+        className="bg-surface border-t border-border rounded-t-2xl w-full max-w-lg max-h-[88svh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {still
-          ? <img src={still} alt="" className="w-full aspect-video object-cover" />
-          : <div className="w-full aspect-video bg-card flex items-center justify-center"><Tv size={28} className="text-text-dim" /></div>}
+        {/* Seul le contenu défile : la CTA reste visible même sur un long synopsis. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-none">
+          {still
+            ? <img src={still} alt="" className="w-full aspect-video max-h-[26svh] object-cover" />
+            : <div className="w-full aspect-video max-h-[26svh] bg-card flex items-center justify-center"><Tv size={28} className="text-text-dim" /></div>}
 
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <div className="min-w-0">
-              <div className="text-xs text-gold font-medium mb-0.5">S{episode.seasonNumber}E{episode.episodeNumber}</div>
-              <h3 className="font-serif text-lg text-text-primary leading-tight">{episode.name}</h3>
+          <div className="p-5 pb-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="min-w-0">
+                <div className="text-xs text-gold font-medium mb-0.5">S{episode.seasonNumber}E{episode.episodeNumber}</div>
+                <h3 className="font-serif text-lg text-text-primary leading-tight">{episode.name}</h3>
+              </div>
+              <button
+                onClick={onClose}
+                aria-label="Fermer"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-card border border-border flex-shrink-0 active:bg-white/5"
+              >
+                <X size={16} className="text-text-sec" />
+              </button>
             </div>
-            <button
-              onClick={onClose}
-              aria-label="Fermer"
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-card border border-border flex-shrink-0 active:bg-white/5"
-            >
-              <X size={16} className="text-text-sec" />
-            </button>
-          </div>
 
-          <div className="flex items-center gap-2 flex-wrap text-xs text-text-sec mb-4">
-            {air && <span>{air.label}</span>}
-            {episode.runtime > 0 && (
-              <>
-                <span className="text-text-dim">·</span>
-                <span className="flex items-center gap-1"><Clock size={11} />{episode.runtime} min</span>
-              </>
-            )}
-            {episode.voteAverage > 0 && (
-              <>
-                <span className="text-text-dim">·</span>
-                <span className="flex items-center gap-1"><Star size={11} className="text-gold fill-gold" />{episode.voteAverage.toFixed(1)}</span>
-              </>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="space-y-2 mb-5">
-              <div className="h-3 w-full bg-card animate-pulse rounded" />
-              <div className="h-3 w-full bg-card animate-pulse rounded" />
-              <div className="h-3 w-2/3 bg-card animate-pulse rounded" />
+            <div className="flex items-center gap-2 flex-wrap text-xs text-text-sec mb-4">
+              {air && <span>{air.label}</span>}
+              {episode.runtime > 0 && (
+                <>
+                  <span className="text-text-dim">·</span>
+                  <span className="flex items-center gap-1"><Clock size={11} />{episode.runtime} min</span>
+                </>
+              )}
+              {episode.voteAverage > 0 && (
+                <>
+                  <span className="text-text-dim">·</span>
+                  <span className="flex items-center gap-1"><Star size={11} className="text-gold fill-gold" />{episode.voteAverage.toFixed(1)}</span>
+                </>
+              )}
             </div>
-          ) : episode.overview ? (
-            <p className="text-sm text-text-sec leading-relaxed mb-5">{episode.overview}</p>
-          ) : (
-            <p className="text-sm text-text-dim italic mb-5">Pas de résumé disponible pour cet épisode.</p>
-          )}
 
+            {loading ? (
+              <div className="space-y-2">
+                <div className="h-3 w-full bg-card animate-pulse rounded" />
+                <div className="h-3 w-full bg-card animate-pulse rounded" />
+                <div className="h-3 w-2/3 bg-card animate-pulse rounded" />
+              </div>
+            ) : episode.overview ? (
+              <p className="text-sm text-text-sec leading-relaxed">{episode.overview}</p>
+            ) : (
+              <p className="text-sm text-text-dim italic">Pas de résumé disponible pour cet épisode.</p>
+            )}
+          </div>
+        </div>
+
+        {/* pb : safe-area iPhone (barre d'accueil) sans jamais descendre sous 1.25rem. */}
+        <div className="flex-shrink-0 border-t border-border px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]">
           <button
             onClick={onMarkWatched}
             className="w-full min-h-[44px] flex items-center justify-center gap-2 py-3 rounded-xl bg-gold text-bg text-sm font-medium active:opacity-90"
@@ -158,6 +162,6 @@ function EpisodeSheet({ episode, loading, onClose, onMarkWatched }) {
           </button>
         </div>
       </div>
-    </div>
+    </SheetBackdrop>
   )
 }

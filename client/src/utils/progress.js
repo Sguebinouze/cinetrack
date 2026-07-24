@@ -53,26 +53,14 @@ export const progress = (entry) => {
   return Math.min(1, ep.watched / ep.aired)
 }
 
-// Hiérarchie d'affichage demandée : d'abord ce qu'on peut regarder maintenant.
-const RANK = { [BEHIND]: 0, [NOT_STARTED]: 1, [UP_TO_DATE]: 2, [DONE]: 3, [ARCHIVED]: 4 }
+// Tri unique de « Ma liste » : ordre alphabétique du titre, dans TOUS les onglets.
+// `sensitivity: 'base'` ignore casse et accents (« Étoile » se range à E, pas après Z),
+// `numeric` range « Saison 2 » avant « Saison 10 ».
+const collator = new Intl.Collator('fr', { sensitivity: 'base', numeric: true })
 
-/**
- * Comparateur de tri de « Ma liste ».
- * Entre deux séries à rattraper, celle dont un épisode est sorti le plus RÉCEMMENT passe
- * devant : un nouvel épisode qui vient de tomber est plus actionnable qu'un retard de
- * 27 épisodes accumulé depuis des mois.
- */
+/** Comparateur de tri de « Ma liste ». Alphabétique, quel que soit l'onglet. */
 export function compareEntries(a, b) {
-  const rankDiff = RANK[deriveState(a)] - RANK[deriveState(b)]
-  if (rankDiff !== 0) return rankDiff
-
-  if (deriveState(a) === BEHIND) {
-    const dateA = a.episodes?.lastUnwatchedAirDate || ''
-    const dateB = b.episodes?.lastUnwatchedAirDate || ''
-    if (dateA !== dateB) return dateB.localeCompare(dateA)
-  }
-
-  return (b.updatedAt || '').localeCompare(a.updatedAt || '')
+  return collator.compare(a.media?.title || '', b.media?.title || '')
 }
 
 // Libellé + pastille de couleur d'un état déduit, pour l'afficher tel quel
@@ -86,8 +74,8 @@ export const STATE_META = {
   [ARCHIVED]: { label: 'Abandonné', dot: 'bg-red' },
 }
 
-// Les trois onglets. « À suivre » regroupe tout ce qui est commencé et pas fini :
-// le tri met les séries à rattraper devant celles où l'on est à jour.
+// Les trois onglets. « À suivre » regroupe tout ce qui est commencé et pas fini
+// (à rattraper comme à jour) ; à l'intérieur, l'ordre reste alphabétique.
 export const TABS = [
   { key: 'suivre', label: 'À suivre', states: [BEHIND, UP_TO_DATE] },
   { key: 'avoir', label: 'À voir', states: [NOT_STARTED] },

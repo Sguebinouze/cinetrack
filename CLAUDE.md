@@ -61,9 +61,9 @@ Regroupement en trois onglets sur « Ma liste » :
 | **À voir** | `notStarted` | Jamais lancé |
 | **Terminé** | `done` + `archived` | Plus rien à regarder |
 
-⚠️ Une série sur laquelle on est à jour reste dans **À suivre**, pas dans Terminé : elle n'est pas finie, elle attend son prochain épisode. Le jour où il tombe, elle remonte en tête toute seule.
+⚠️ Une série sur laquelle on est à jour reste dans **À suivre**, pas dans Terminé : elle n'est pas finie, elle attend son prochain épisode. Le jour où il tombe, elle passe simplement de `upToDate` à `behind` — même onglet, même place dans l'ordre alphabétique, seule sa pastille change.
 
-**Tri** : `behind` → `notStarted` → `upToDate` → `done` → `archived`. Entre deux séries `behind`, celle dont un épisode est sorti le plus **récemment** passe devant (`lastUnwatchedAirDate` décroissant) — un épisode qui vient de tomber est plus actionnable qu'un retard de 27 épisodes accumulé depuis des mois.
+**Tri** : **ordre alphabétique du titre, dans les trois onglets**, sans exception (`compareEntries` = un simple `Intl.Collator('fr', { sensitivity: 'base', numeric: true })`). L'état déduit sert à *ranger dans un onglet*, jamais à ordonner à l'intérieur : une liste qui se réordonne toute seule quand un épisode tombe est illisible, on cherche un titre à l'œil. Ne pas réintroduire de tri par `lastUnwatchedAirDate` ou `updatedAt`.
 
 Côté API, `GET /api/watchlist` renvoie `episodes: { total, aired, watched, lastUnwatchedAirDate }`, agrégé **en SQL** : sans ça, trier 9 titres imposerait de télécharger 1500 épisodes. `GET /api/stats` applique la même philosophie — une série compte dès le **premier épisode vu** (l'ancienne version annonçait « 0 série vue » alors que 473 épisodes l'étaient, et laissait « Genres favoris » vide).
 
@@ -82,6 +82,7 @@ Côté API, `GET /api/watchlist` renvoie `episodes: { total, aired, watched, las
 - **Mutations : `invalidateQueries` dans `onSuccess`.** Une seule mutation optimiste dans toute l'app (l'action en masse de `DetailPage`) — c'est volontaire, elle touche des centaines de lignes.
 - **Toasts** : `useToast()` depuis `client/src/hooks/useToast.js` → `toast('message')` ou `toast('message', 'error')`. Provider monté dans `App.jsx`.
 - Conventions visuelles : cartes `bg-card border border-border rounded-xl` · titres de section `text-xs text-text-dim uppercase tracking-widest` · titres `font-serif` (Georgia) · CTA principal `bg-gold text-bg rounded-xl` · modales = bottom sheets · feedback tactile `active:opacity-70` / `active:bg-white/5` (mobile : pas de `hover:`) · cibles tactiles ≥ 44px · conteneur `max-w-lg mx-auto`.
+- ⚠️ **Toute modale passe par [`SheetBackdrop`](client/src/components/SheetBackdrop.jsx)**, jamais par un `fixed inset-0` écrit à la main. `BottomNav` est en `z-50` **dans `#root`** : une feuille rendue au milieu de l'arbre se fait recouvrir par la barre d'onglets sur iOS et perd ~100pt en bas (fin de texte, bouton d'action). `SheetBackdrop` la monte en **portal sur `<body>`**, ce qui neutralise le problème quel que soit le parent. Prévoir aussi la safe-area (`env(safe-area-inset-bottom)`) et, si le contenu peut être long, un corps en `overflow-y-auto` avec la CTA dans un pied `flex-shrink-0` — sinon le bouton part hors écran. Unités de hauteur : `svh`, pas `vh`.
 - Dates : `Intl` natif, locale `fr-FR`. Helpers de diffusion dans `client/src/utils/airDate.js` (`formatAirDate`, `isAired`). Pas de date-fns.
 
 ## TMDB

@@ -7,6 +7,7 @@ import StarRating from '../components/StarRating'
 import MediaCard from '../components/MediaCard'
 import NextEpisodeBadge from '../components/NextEpisodeBadge'
 import EpisodeSlider from '../components/EpisodeSlider'
+import SheetBackdrop from '../components/SheetBackdrop'
 import { useToast } from '../hooks/useToast'
 import { isAired } from '../utils/airDate'
 import { deriveState, STATE_META } from '../utils/progress'
@@ -276,8 +277,14 @@ export default function DetailPage() {
 
       {/* Sélection de liste personnalisée */}
       {showListPicker && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
-          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm">
+        <SheetBackdrop
+          onClose={() => setShowListPicker(false)}
+          className="px-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+        >
+          <div
+            className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm max-h-[85svh] overflow-y-auto overscroll-contain scrollbar-none"
+            onClick={e => e.stopPropagation()}
+          >
             <h3 className="font-serif text-lg text-text-primary mb-4">Ajouter à une liste</h3>
             {lists.length === 0 ? (
               <p className="text-sm text-text-sec mb-4">Aucune liste pour l'instant. Crée-en une depuis ton profil.</p>
@@ -306,13 +313,19 @@ export default function DetailPage() {
               Fermer
             </button>
           </div>
-        </div>
+        </SheetBackdrop>
       )}
 
       {/* Confirm suppression */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8">
-          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm">
+        <SheetBackdrop
+          onClose={() => setShowDeleteConfirm(false)}
+          className="px-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))]"
+        >
+          <div
+            className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm"
+            onClick={e => e.stopPropagation()}
+          >
             <h3 className="font-serif text-lg text-text-primary mb-2">Retirer de la liste ?</h3>
             <p className="text-sm text-text-sec mb-5">Ta note et ton avis seront aussi supprimés.</p>
             <div className="flex gap-3">
@@ -331,7 +344,7 @@ export default function DetailPage() {
               </button>
             </div>
           </div>
-        </div>
+        </SheetBackdrop>
       )}
 
       {/* Contenu principal */}
