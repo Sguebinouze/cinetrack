@@ -24,9 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 22 minimum : wrangler refuse de démarrer en dessous. Le workflow de
+      # déploiement s'en tire avec Node 20 parce qu'il passe par wrangler-action,
+      # qui embarque son propre runtime — ici on appelle wrangler directement.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install wrangler
         run: npm ci
