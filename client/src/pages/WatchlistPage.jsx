@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ListVideo, Search, AlertCircle, LayoutGrid, List, Film, Tv } from 'lucide-react'
 import { watchlistApi } from '../services/api'
@@ -14,10 +14,27 @@ const typeFilters = [
 ]
 
 export default function WatchlistPage() {
-  // « À suivre » par défaut : c'est la page d'accueil de l'app, elle doit ouvrir sur
-  // ce qu'on peut regarder maintenant, pas sur un inventaire.
-  const [activeTab, setActiveTab] = useState('suivre')
-  const [typeFilter, setTypeFilter] = useState(null)
+  // Onglet et filtre vivent dans l'URL, pas dans un useState : on revient d'une fiche
+  // par navigate(-1), qui remonte la page à neuf — un état local était perdu et on
+  // retombait toujours sur « À suivre », même en venant de « Terminé ».
+  //
+  // `replace` : changer d'onglet ne doit PAS empiler une entrée d'historique, sinon la
+  // flèche retour parcourt les onglets visités au lieu de quitter la page.
+  //
+  // Sans paramètre, on ouvre sur « À suivre » : c'est la page d'accueil de l'app, elle
+  // doit montrer ce qu'on peut regarder maintenant, pas un inventaire. Un lancement à
+  // froid passe par /watchlist nu, donc ce défaut est préservé.
+  const [params, setParams] = useSearchParams()
+  const activeTab = TABS.some(t => t.key === params.get('tab')) ? params.get('tab') : 'suivre'
+  const typeFilter = ['movie', 'tv'].includes(params.get('type')) ? params.get('type') : null
+
+  const setParam = (key, value) => setParams((prev) => {
+    const next = new URLSearchParams(prev)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    return next
+  }, { replace: true })
+
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('cinetrack-watchlist-view') || 'grid')
   const navigate = useNavigate()
 
@@ -91,7 +108,7 @@ export default function WatchlistPage() {
           {TABS.map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => setActiveTab(key)}
+              onClick={() => setParam('tab', key)}
               className={`flex-1 min-h-[44px] px-2 rounded-full text-sm font-medium transition-colors border flex items-center justify-center gap-1.5 ${
                 activeTab === key
                   ? 'bg-gold text-bg border-gold'
@@ -112,7 +129,7 @@ export default function WatchlistPage() {
           {typeFilters.map(({ key, label, icon: Icon }) => (
             <button
               key={String(key)}
-              onClick={() => setTypeFilter(key)}
+              onClick={() => setParam('type', key)}
               className={`flex-1 flex items-center justify-center gap-1.5 min-h-[36px] rounded-full text-xs font-medium border transition-colors ${
                 typeFilter === key
                   ? 'bg-gold/15 text-gold border-gold/30'
@@ -168,7 +185,7 @@ export default function WatchlistPage() {
                 <p className="text-sm text-text-sec mb-1">Aucun titre ici</p>
                 {typeFilter && (
                   <button
-                    onClick={() => setTypeFilter(null)}
+                    onClick={() => setParam('type', null)}
                     className="text-xs text-gold mt-2 underline underline-offset-2"
                   >
                     Retirer le filtre

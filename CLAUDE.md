@@ -78,6 +78,7 @@ Côté API, `GET /api/watchlist` renvoie `episodes: { total, aired, watched, las
 - **Pas de shadcn/ui, pas de `cn()`/clsx.** Tailwind écrit à la main.
 - **Dark only.** Aucune variante `dark:`. Palette sémantique dans `tailwind.config.js` — utiliser les noms (`bg`, `surface`, `card`, `border`, `gold`, `text-primary`, `text-sec`, `text-dim`, `green`, `blue`, `red`), **jamais de hex brut**.
 - **Query keys inline**, pas de factory : `['detail', type, id]`, `['seasons', id]`, `['watchlist', null]`, `['stats']`, `['lists']`, `['next-episode', id]`…
+- « Ma liste » garde son onglet et son filtre **dans l'URL** (`/watchlist?tab=termine`), pas dans un `useState` : on revient d'une fiche par `navigate(-1)`, qui remonte la page à neuf. Écrire avec `replace: true`, sinon la flèche retour reparcourt les onglets visités. Sans paramètre on ouvre sur « À suivre » — c'est l'accueil, il montre ce qui est regardable maintenant.
 - « Ma liste » ne filtre plus côté serveur : une seule requête `['watchlist', null]`, l'état est déduit côté client (cf. section ci-dessus).
 - Un nouveau préfixe de query à persister offline doit être ajouté à `PERSISTED_QUERY_PREFIXES` dans `App.jsx`.
 - **Mutations : `invalidateQueries` dans `onSuccess`.** Une seule mutation optimiste dans toute l'app (l'action en masse de `DetailPage`) — c'est volontaire, elle touche des centaines de lignes.
