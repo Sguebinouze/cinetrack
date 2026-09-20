@@ -77,7 +77,7 @@ Côté API, `GET /api/watchlist` renvoie `episodes: { total, aired, watched, las
 
 - **Pas de shadcn/ui, pas de `cn()`/clsx.** Tailwind écrit à la main.
 - **Dark only.** Aucune variante `dark:`. Palette sémantique dans `tailwind.config.js` — utiliser les noms (`bg`, `surface`, `card`, `border`, `gold`, `text-primary`, `text-sec`, `text-dim`, `green`, `blue`, `red`), **jamais de hex brut**.
-- **Query keys inline**, pas de factory : `['detail', type, id]`, `['seasons', id]`, `['watchlist', null]`, `['stats']`, `['lists']`, `['next-episode', id]`…
+- **Query keys inline**, pas de factory : `['detail', type, id]`, `['seasons', id]`, `['watchlist', null]`, `['stats']`, `['lists']`, `['next-episode', id]`, `['suggestions']`…
 - « Ma liste » garde son onglet et son filtre **dans l'URL** (`/watchlist?tab=termine`), pas dans un `useState` : on revient d'une fiche par `navigate(-1)`, qui remonte la page à neuf. Écrire avec `replace: true`, sinon la flèche retour reparcourt les onglets visités. Sans paramètre on ouvre sur « À suivre » — c'est l'accueil, il montre ce qui est regardable maintenant.
 - « Ma liste » ne filtre plus côté serveur : une seule requête `['watchlist', null]`, l'état est déduit côté client (cf. section ci-dessus).
 - Un nouveau préfixe de query à persister offline doit être ajouté à `PERSISTED_QUERY_PREFIXES` dans `App.jsx`.
@@ -110,6 +110,17 @@ Conséquence pour l'affichage (`client/src/utils/airDate.js`) :
 Détails d'intégration TVmaze : pas de clé d'API, ~20 req/10s. Le pont se fait via `imdb_id` (TMDB `/external_ids`) → `/lookup/shows?imdb=…`, qui **répond en 301** (`fetch()` suit, `curl` a besoin de `-L`). L'id TVmaze est mis en cache dans `Media.tvmazeId`, jamais recalculé.
 
 **Garde-fou de la synchro** : une saison n'est enrichie que si TMDB et TVmaze sont d'accord sur le **nombre d'épisodes**. Les numérotations divergent parfois (épisodes doubles, spéciaux) et on collerait la date du mauvais épisode. En cas de désaccord, on ne touche pas à la saison et TMDB fait foi. Tout l'enrichissement est best-effort : une panne TVmaze ne doit jamais faire échouer une synchro.
+
+## « Découvrir » suggère à partir de la bibliothèque, pas des tendances
+
+`GET /api/suggestions` agrège les recommandations TMDB des titres **réellement regardés** et retire ce qui est déjà en base. Un titre recommandé par plusieurs séries de la bibliothèque remonte : c'est le signal de goût le plus solide sans modèle.
+
+- **Graines** : 12 max, les mieux notées d'abord puis les plus récemment touchées. Une série n'est une graine qu'à partir du **premier épisode vu** (même philosophie que `/api/stats`), un film qu'une fois déclaré vu. Un titre **abandonné n'est jamais une graine** — on ne recommande pas depuis un échec.
+- **Promise.all** sur les 12 appels TMDB, jamais d'`await` en boucle (leçon du commit 49b766e). Une graine qui échoue est ignorée, elle ne fait pas tomber la page.
+- Bibliothèque vide ⇒ `personalized: false` et repli sur les tendances, jamais une page vide.
+- Filtres de bruit : poster obligatoire, `vote_count >= 10`.
+
+L'onglet **« Pour toi »** est le défaut de Découvrir. Les autres onglets restent des tendances TMDB brutes, mais **filtrées de ce qui est déjà suivi** — comme le tirage de « Quoi ce soir ? ». La **recherche**, elle, n'est jamais filtrée : chercher un titre qu'on possède pour rouvrir sa fiche est un usage courant.
 
 ## Programme TV : la seule donnée qui n'entre pas par l'API
 

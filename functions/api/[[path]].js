@@ -280,6 +280,88 @@ app.delete('/watchlist/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+// ── SUGGESTIONS PERSONNALISÉES ────────────────────────────
+// « Découvrir » ne servait que les tendances TMDB : les mêmes pour tout le monde, et
+// d'autant plus inutiles que la bibliothèque grossit — sur 66 titres, la moitié des
+// « tendances séries » y était déjà.
+//
+// On part donc de ce qui a RÉELLEMENT été regardé (compteurs d'épisodes, pas statut
+// déclaré — cf. progress.js) et on agrège les recommandations TMDB de chaque titre.
+// Un titre recommandé par PLUSIEURS séries de la bibliothèque remonte : c'est le
+// signal de goût le plus solide qu'on puisse tirer sans modèle.
+
+const SEED_LIMIT = 12
+const SUGGESTION_LIMIT = 30
+
+// Les graines : les titres les mieux notés d'abord, les plus récemment touchés ensuite.
+// Un titre abandonné n'est jamais une graine — on ne recommande pas à partir d'un échec.
+const SEEDS_QUERY = `
+  SELECT m.tmdbId, m.mediaType, w.rating, w.updatedAt,
+         COALESCE(SUM(COALESCE(e.watched, 0)), 0) AS epWatched
+  FROM WatchEntry w
+  JOIN Media m ON m.id = w.mediaId
+  LEFT JOIN Season s ON s.mediaId = m.id
+  LEFT JOIN Episode e ON e.seasonId = s.id
+  WHERE w.status != 'dropped'
+  GROUP BY m.id
+  HAVING (m.mediaType = 'movie' AND w.status = 'watched') OR epWatched > 0
+  ORDER BY (w.rating IS NULL), w.rating DESC, w.updatedAt DESC
+  LIMIT ?
+`
+
+// Un poster manquant fait un trou dans la grille ; sous 10 votes, TMDB recommande
+// surtout des obscurités non traduites.
+const suggestable = (item) => item.poster_path && (item.vote_count || 0) >= 10
+
+app.get('/suggestions', async (c) => {
+  const db = c.env.DB
+  const [{ results: seeds }, { results: owned }] = await db.batch([
+    db.prepare(SEEDS_QUERY).bind(SEED_LIMIT),
+    db.prepare('SELECT tmdbId FROM Media'),
+  ])
+
+  // Bibliothèque vide ou rien de commencé : aucune personnalisation possible,
+  // on retombe sur les tendances plutôt que de renvoyer une page vide.
+  if (!seeds.length) {
+    const data = await tmdb(c.env).get('/trending/tv/week')
+    const results = excludeAdult(data.results).filter(suggestable).map(r => ({ ...r, media_type: 'tv' }))
+    return c.json({ personalized: false, seeds: 0, results })
+  }
+
+  // Promise.all, jamais d'await en boucle : 12 allers-retours TMDB en série, c'est
+  // la leçon du commit 49b766e (26s → 2s). Une graine qui échoue est ignorée,
+  // elle ne doit pas faire tomber toute la page.
+  const lists = await Promise.all(seeds.map(seed =>
+    tmdb(c.env).get(`/${seed.mediaType}/${seed.tmdbId}/recommendations`)
+      .then(r => ({ seed, results: r?.results || [] }))
+      .catch(() => ({ seed, results: [] }))
+  ))
+
+  const ownedIds = new Set(owned.map(o => o.tmdbId))
+  const scored = new Map()
+  for (const { seed, results } of lists) {
+    for (const item of excludeAdult(results)) {
+      if (ownedIds.has(item.id) || !suggestable(item)) continue
+      const hit = scored.get(item.id)
+      if (hit) hit.score += 1
+      // `media_type` vient de la graine : /tv/x/recommendations ne renvoie que des
+      // séries, mais TMDB ne tague pas toujours le champ, et la grille en a besoin.
+      else scored.set(item.id, { item: { ...item, media_type: seed.mediaType }, score: 1 })
+    }
+  }
+
+  const results = [...scored.values()]
+    .sort((a, b) =>
+      b.score - a.score ||
+      (b.item.vote_average || 0) - (a.item.vote_average || 0) ||
+      (b.item.popularity || 0) - (a.item.popularity || 0))
+    .slice(0, SUGGESTION_LIMIT)
+    // `recommendedBy` : nombre de titres de la bibliothèque qui mènent ici.
+    .map(({ item, score }) => ({ ...item, recommendedBy: score }))
+
+  return c.json({ personalized: true, seeds: seeds.length, results })
+})
+
 // ── PROCHAIN ÉPISODE (dates TVmaze) ───────────────────────
 // Volontairement indépendant de la synchro : le badge doit s'afficher même sur une
 // série qu'on vient de découvrir. Renvoie null si TVmaze ne connaît pas la série —

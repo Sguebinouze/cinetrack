@@ -55,6 +55,13 @@ export const tvGuideApi = {
   program: (id) => api.get(`/tv-guide/program/${id}`).then(r => r.data),
 }
 
+export const suggestionsApi = {
+  // Recommandations déduites de la bibliothèque (agrégation TMDB côté serveur).
+  // Renvoie { personalized, seeds, results } — `personalized: false` = repli sur
+  // les tendances, faute de titre commencé pour amorcer.
+  get: () => api.get('/suggestions').then(r => r.data),
+}
+
 export const statsApi = {
   get: () => api.get('/stats').then(r => r.data),
   journal: () => api.get('/stats/journal').then(r => r.data),

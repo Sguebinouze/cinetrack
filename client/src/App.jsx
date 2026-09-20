@@ -41,8 +41,10 @@ const persister = createSyncStoragePersister({
 // (watchlist, stats, épisodes, listes, journal, wrapped, détail déjà consulté).
 // On exclut volontairement 'search'/'trending' : résultats TMDB temps réel,
 // aucune valeur à rejouer offline et ça gonflerait le cache pour rien.
+// 'suggestions' y a en revanche sa place : c'est une donnée PERSO, dérivée de la
+// bibliothèque, qui ne bouge qu'avec elle — pas un flux d'actualité.
 const PERSISTED_QUERY_PREFIXES = [
-  'watchlist', 'stats', 'seasons', 'lists', 'journal', 'wrapped', 'detail', 'next-episode', 'tmdb-season', 'person',
+  'watchlist', 'stats', 'seasons', 'lists', 'journal', 'wrapped', 'detail', 'next-episode', 'tmdb-season', 'person', 'suggestions',
 ]
 
 export default function App() {

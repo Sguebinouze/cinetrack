@@ -6,6 +6,9 @@ node_modules/
 **/.env
 **/.env.local
 **/.env.*.local
+# Secrets locaux de `wrangler pages dev` (TMDB_API_KEY)
+.dev.vars
+.dev.vars.*
 
 # Build
 client/dist/

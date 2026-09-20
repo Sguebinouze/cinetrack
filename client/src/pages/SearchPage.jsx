@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search, X, TrendingUp, AlertCircle, Shuffle, Star } from 'lucide-react'
-import { tmdbApi, watchlistApi } from '../services/api'
+import { Search, X, TrendingUp, AlertCircle, Shuffle, Star, Sparkles } from 'lucide-react'
+import { tmdbApi, watchlistApi, suggestionsApi } from '../services/api'
 import { MOVIE_GENRES, TV_GENRES } from '../constants/genres'
 import MediaCard from '../components/MediaCard'
 import SheetBackdrop from '../components/SheetBackdrop'
@@ -16,7 +16,10 @@ function useDebounce(value, delay = 400) {
   return debounced
 }
 
+// « Pour toi » en tête et par défaut : les tendances mondiales sont les mêmes pour
+// tout le monde et deviennent d'autant plus inutiles que la bibliothèque grossit.
 const trendingFilters = [
+  { key: 'foryou', label: 'Pour toi' },
   { key: 'all', label: 'Tout' },
   { key: 'movie', label: 'Films' },
   { key: 'tv', label: 'Séries' },
@@ -54,7 +57,7 @@ async function fetchDiscover(filter) {
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
-  const [trendingFilter, setTrendingFilter] = useState('all')
+  const [trendingFilter, setTrendingFilter] = useState('foryou')
   const debouncedQuery = useDebounce(query, 400)
   const navigate = useNavigate()
 
@@ -66,9 +69,22 @@ export default function SearchPage() {
   const [isPicking, setIsPicking] = useState(false)
   const [tonightEmpty, setTonightEmpty] = useState(false)
 
+  const isForYou = trendingFilter === 'foryou'
+
+  // Suggestions personnalisées : le serveur agrège les recommandations TMDB des
+  // titres réellement regardés et en retire ce qui est déjà dans la bibliothèque.
+  // Demi-heure de fraîcheur : elles ne bougent qu'avec la bibliothèque.
+  const { data: suggestions, isLoading: isSuggestionsLoading, isError: suggestionsErrorFlag } = useQuery({
+    queryKey: ['suggestions'],
+    queryFn: () => suggestionsApi.get(),
+    enabled: isForYou,
+    staleTime: 1000 * 60 * 30,
+  })
+
   const { data: trending = [], isLoading: isTrendingLoading, isError: trendingError } = useQuery({
     queryKey: ['trending', trendingFilter],
     queryFn: () => fetchDiscover(trendingFilter),
+    enabled: !isForYou,
     staleTime: 1000 * 60 * 10,
   })
 
@@ -89,8 +105,17 @@ export default function SearchPage() {
   const watchlistIds = new Set(watchlist.map(e => e.media.tmdbId))
 
   const showResults = debouncedQuery.length > 1
-  const displayItems = showResults ? results : trending
-  const isError = showResults ? searchError : trendingError
+
+  // Suggérer un titre déjà suivi n'apporte rien. Le serveur filtre déjà « Pour toi » ;
+  // ici on couvre aussi les onglets de tendances, qui viennent bruts de TMDB.
+  // La RECHERCHE, elle, n'est pas filtrée : chercher un titre qu'on possède pour
+  // rouvrir sa fiche est un usage courant (il porte alors son badge « dans ma liste »).
+  const discoverItems = (isForYou ? suggestions?.results : trending) || []
+  const displayItems = showResults ? results : discoverItems.filter(i => !watchlistIds.has(i.id))
+
+  const discoverLoading = isForYou ? isSuggestionsLoading : isTrendingLoading
+  const discoverError = isForYou ? suggestionsErrorFlag : trendingError
+  const isError = showResults ? searchError : discoverError
 
   const genreOptions = tonightType === 'movie' ? MOVIE_GENRES : TV_GENRES
 
@@ -98,10 +123,12 @@ export default function SearchPage() {
     setIsPicking(true)
     setTonightEmpty(false)
     try {
-      const pool = await tmdbApi.discover(tonightType, {
+      // Tirer un titre déjà dans la liste n'a aucun intérêt : on l'écarte du sac
+      // avant le tirage, plutôt que de retirer après coup.
+      const pool = (await tmdbApi.discover(tonightType, {
         ...(tonightGenre ? { genre: tonightGenre } : {}),
         ...(tonightDuration ? { maxRuntime: tonightDuration } : {}),
-      })
+      })).filter(m => !watchlistIds.has(m.id))
       if (pool.length === 0) {
         setTonightEmpty(true)
         setTonightPick(null)
@@ -157,15 +184,20 @@ export default function SearchPage() {
         {!showResults && (
           <>
             <div className="flex items-center gap-2 px-4 pt-3 pb-2 text-xs text-text-sec uppercase tracking-widest">
-              <TrendingUp size={13} />
-              <span>Tendances cette semaine</span>
+              {isForYou ? <Sparkles size={13} /> : <TrendingUp size={13} />}
+              <span>
+                {isForYou
+                  ? (suggestions?.personalized ? `D'après tes ${suggestions.seeds} titres favoris` : 'Tendances cette semaine')
+                  : 'Tendances cette semaine'}
+              </span>
             </div>
-            <div className="flex gap-2 px-4 pb-3">
+            {/* Défilement horizontal : cinq puces ne tiennent pas sur un écran de 375px. */}
+            <div className="flex gap-2 overflow-x-auto scrollbar-none px-4 pb-3">
               {trendingFilters.map(({ key, label }) => (
                 <button
                   key={key}
                   onClick={() => setTrendingFilter(key)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
                     trendingFilter === key
                       ? 'bg-gold text-bg border-gold'
                       : 'text-text-sec border-border bg-card'
@@ -194,7 +226,13 @@ export default function SearchPage() {
         {!isError && displayItems.length > 0 && (
           <div className="grid grid-cols-3 gap-3 px-4 pt-1 pb-2">
             {displayItems.map(item => {
-              const mediaType = item.media_type || (!showResults && trendingFilter === 'anime' ? 'tv' : !showResults && trendingFilter !== 'all' ? trendingFilter : 'movie')
+              // Les suggestions et la recherche portent leur `media_type`. Les
+              // tendances filtrées ne l'ont pas : on le déduit de l'onglet — sauf
+              // « Pour toi » et « Tout », qui ne sont pas des types.
+              const fallbackType = trendingFilter === 'anime' ? 'tv'
+                : (trendingFilter === 'all' || trendingFilter === 'foryou') ? 'movie'
+                : trendingFilter
+              const mediaType = item.media_type || (showResults ? 'movie' : fallbackType)
               return (
                 <MediaCard
                   key={item.id}
@@ -216,18 +254,25 @@ export default function SearchPage() {
         )}
 
         {/* Chargement des tendances */}
-        {!showResults && isTrendingLoading && !isError && (
+        {!showResults && discoverLoading && !isError && (
           <div className="flex flex-col items-center justify-center py-20 text-text-dim">
             <div className="w-10 h-10 border-2 border-text-dim/30 rounded-full border-t-gold animate-spin mb-3" />
-            <p className="text-sm">Chargement des tendances…</p>
+            <p className="text-sm">{isForYou ? 'Analyse de ta bibliothèque…' : 'Chargement des tendances…'}</p>
           </div>
         )}
 
-        {/* Tendances vides (chargées mais aucun résultat) */}
-        {!showResults && !isTrendingLoading && !isError && trending.length === 0 && (
+        {/* Chargé, mais plus rien à montrer — souvent parce que tout est déjà suivi */}
+        {!showResults && !discoverLoading && !isError && displayItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-text-dim px-8 text-center">
-            <TrendingUp size={40} strokeWidth={1} className="mb-3 opacity-30" />
-            <p className="text-sm">Aucune tendance disponible pour le moment</p>
+            {isForYou ? <Sparkles size={40} strokeWidth={1} className="mb-3 opacity-30" /> : <TrendingUp size={40} strokeWidth={1} className="mb-3 opacity-30" />}
+            <p className="text-sm text-text-sec mb-1">
+              {isForYou ? 'Aucune suggestion pour l\u2019instant' : 'Aucune tendance disponible'}
+            </p>
+            <p className="text-xs text-text-dim">
+              {isForYou
+                ? 'Note quelques titres ou regarde un premier épisode — les recommandations partent de là.'
+                : 'Tout ce qui sort ici est déjà dans ta liste.'}
+            </p>
           </div>
         )}
       </div>
