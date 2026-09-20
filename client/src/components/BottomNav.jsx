@@ -1,9 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Search, ListVideo, User } from 'lucide-react'
+import { Search, ListVideo, User, Tv } from 'lucide-react'
 
 // « Ma liste » en premier : c'est la page d'accueil. Stats a fusionné dans « Moi ».
+// « TV » juste après : c'est l'autre question du soir (« qu'est-ce qui passe ? »),
+// elle précède « Découvrir », qui relève de la recherche délibérée.
 const tabs = [
   { to: '/watchlist', icon: ListVideo, label: 'Ma liste' },
+  { to: '/tv', icon: Tv, label: 'TV' },
   { to: '/search', icon: Search, label: 'Découvrir' },
   { to: '/profile', icon: User, label: 'Moi' },
 ]

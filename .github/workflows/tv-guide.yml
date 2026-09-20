@@ -1,0 +1,38 @@
+name: Import du programme TV
+
+# Le fichier source (xmltvfr.fr) est régénéré vers 02h10 heure de Paris. On passe
+# à 03h30 UTC pour être sûr de lire la version du jour, été comme hiver.
+#
+# ⚠️ Ce workflow EST le cron de l'app : les Pages Functions n'en ont pas (c'est une
+# fonctionnalité Workers) et le plan gratuit plafonne à 10 ms de CPU par invocation,
+# ce qui exclut de parser 7 Mo de XML dans l'API. Voir scripts/import-tv-guide.mjs.
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+# Une seule exécution à la fois : deux imports concurrents se marcheraient dessus
+# sur les DELETE par jour.
+concurrency:
+  group: tv-guide
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    name: Importer J-2 → J+4 dans la D1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install wrangler
+        run: npm ci
+
+      - name: Importer le programme TV
+        run: npm run tv:import
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

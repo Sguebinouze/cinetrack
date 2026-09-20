@@ -85,3 +85,39 @@ model CustomListItem {
 
   @@unique([listId, mediaId])
 }
+
+// ── Programme TV (TNT française) ────────────────────────────
+// Miroir local de xmltvfr.fr, peuplé uniquement par scripts/import-tv-guide.mjs.
+// Donnée de flux sur une fenêtre glissante J-2 → J+4 : aucune relation avec
+// Media / WatchEntry, elle est réimportée en entier chaque nuit.
+
+model TvChannel {
+  id       String @id // identifiant XMLTV (« TF1.fr »)
+  name     String
+  logo     String?
+  position Int    @default(0) // ordre des canaux TNT, TF1 = 0
+
+  programs TvProgram[]
+}
+
+model TvProgram {
+  id           Int       @id @default(autoincrement())
+  channelId    String
+  channel      TvChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  startsAt     String // ISO 8601 avec décalage
+  endsAt       String?
+  day          String // jour de GRILLE : avant 5h ⇒ soirée de la veille
+  title        String
+  subTitle     String?
+  description  String?
+  categories   String? // tableau JSON
+  imageUrl     String?
+  year         Int?
+  director     String?
+  actors       String? // tableau JSON
+  episodeLabel String? // « S3E4 »
+  csa          String?
+
+  @@unique([channelId, startsAt])
+  @@index([day, channelId, startsAt])
+}

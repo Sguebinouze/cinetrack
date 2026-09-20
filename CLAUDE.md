@@ -26,6 +26,7 @@ Tables **PascalCase singulier**, colonnes **camelCase**. Le point non intuitif :
 - `Season(id, mediaId→Media, seasonNumber, name, episodeCount)` — `UNIQUE(mediaId, seasonNumber)`
 - `Episode(id, seasonId→Season, episodeNumber, name, airDate TEXT 'AAAA-MM-JJ', watched, watchedAt, rating)` — `UNIQUE(seasonId, episodeNumber)`
 - `CustomList` / `CustomListItem(UNIQUE(listId, mediaId))`
+- `TvChannel` / `TvProgram` — programme TV, **sans aucun lien avec `Media`** (cf. section dédiée).
 - `WatchLog` — **table morte**, jamais lue ni écrite.
 
 Un `Episode` n'a **ni `mediaId` ni id TMDB** : on y accède uniquement via `Episode.seasonId → Season.mediaId → Media.tmdbId`.
@@ -71,7 +72,7 @@ Côté API, `GET /api/watchlist` renvoie `episodes: { total, aired, watched, las
 
 `client/` — React 19, Vite, Tailwind 3.4, TanStack Query 5, **axios** (pas fetch), react-router 7, lucide-react, PWA. Linter : **oxlint**.
 
-**Trois onglets** (`BottomNav.jsx`) : **Ma liste** (`/watchlist`, c'est l'accueil — `/` y redirige) · **Découvrir** (`/search`) · **Moi** (`/profile`). Pages hors nav : `/journal`, `/wrapped`, `/:type/:id`.
+**Quatre onglets** (`BottomNav.jsx`) : **Ma liste** (`/watchlist`, c'est l'accueil — `/` y redirige) · **TV** (`/tv`) · **Découvrir** (`/search`) · **Moi** (`/profile`). Pages hors nav : `/journal`, `/wrapped`, `/person/:id`, `/:type/:id`.
 `/stats` n'existe plus — l'ancienne page a fusionné dans « Moi » (les deux affichaient « Genres favoris », un vrai doublon). La route redirige vers `/profile` pour ne pas casser un raccourci PWA.
 
 - **Pas de shadcn/ui, pas de `cn()`/clsx.** Tailwind écrit à la main.
@@ -109,6 +110,27 @@ Détails d'intégration TVmaze : pas de clé d'API, ~20 req/10s. Le pont se fait
 
 **Garde-fou de la synchro** : une saison n'est enrichie que si TMDB et TVmaze sont d'accord sur le **nombre d'épisodes**. Les numérotations divergent parfois (épisodes doubles, spéciaux) et on collerait la date du mauvais épisode. En cas de désaccord, on ne touche pas à la saison et TMDB fait foi. Tout l'enrichissement est best-effort : une panne TVmaze ne doit jamais faire échouer une synchro.
 
+## Programme TV : la seule donnée qui n'entre pas par l'API
+
+Source : **[xmltvfr.fr](https://xmltvfr.fr)** (fichier TNT, 30 chaînes, ~1,2 Mo gzip / 7 Mo de XML), généré chaque nuit vers 02h10 par [racacax/XML-TV-Fr](https://github.com/racacax/XML-TV-Fr). Il couvre **J-1 → J+8** ; on n'en conserve que **J-2 → J+4**.
+
+> ⚠️ **J-2 ne vient jamais du flux** : il est l'archive laissée par l'exécution de l'avant-veille. D'où le fonctionnement de [`scripts/import-tv-guide.mjs`](scripts/import-tv-guide.mjs) — il purge hors fenêtre, puis ne **réécrit que les jours couverts de bout en bout** par le flux. Un jour partiel (la nuit de J-1, rattachée à J-2) est complété en `INSERT OR IGNORE`, jamais remplacé. Casser ça efface l'historique.
+
+**L'ingestion n'est pas une route.** Les Pages Functions n'ont pas de cron trigger (c'est une fonctionnalité Workers) et le plan gratuit plafonne à **10 ms de CPU par invocation** : parser 7 Mo de XML dans l'API est hors de portée. Le cron de l'app est donc [`.github/workflows/tv-guide.yml`](.github/workflows/tv-guide.yml), qui réutilise les secrets Cloudflare déjà posés pour le déploiement. L'API ne fait que des `SELECT`.
+
+Pièges vérifiés, à ne pas réapprendre :
+
+1. ⚠️ **D1 plafonne la longueur d'une INSTRUCTION SQL** (`SQLITE_TOOBIG` vers 100 Ko). Grouper les `INSERT` par nombre de lignes ne protège de rien : un lot de films aux longs résumés pèse cinq fois un lot de bulletins météo. On groupe **par taille** (`MAX_STATEMENT_BYTES`). SQLite en local avale les instructions géantes sans broncher — seule la D1 refuse, et l'import échoue à moitié écrit.
+2. **`--local` vise `server/dev.db`** (le backend Express), pas la D1 locale de Wrangler : trois magasins distincts cohabitent.
+3. Pour tester le chemin prod, lancer `wrangler pages dev client/dist` **sans `--d1=`** — le drapeau crée un magasin local séparé de celui de `d1 execute --local`, et la table paraît absente.
+4. Le contenu de `<rating>` est lui-même balisé (`<rating><value>-10</value></rating>`) : descendre jusqu'au `<value>`.
+
+**Jour de grille** : `TvProgram.day` n'est pas le jour calendaire. Ce qui commence **avant 5h du matin appartient à la soirée de la veille**, comme dans n'importe quel magazine TV. C'est la colonne sur laquelle la page filtre, et elle est calculée à l'import.
+
+**La grille est servie sans les résumés.** `GET /api/tv-guide?day=` renvoie ~800 programmes ; embarquer `description`, `imageUrl`, `actors` et `csa` ajouterait ~350 Ko de texte que la liste n'affiche pas. Le détail est chargé à l'ouverture, par `GET /api/tv-guide/program/:id`. Même philosophie que l'agrégation SQL de `/api/watchlist`.
+
+Toutes les dates sont des ISO 8601 **avec décalage, écrites en heure de Paris** par la source. Deux conséquences exploitées dans [`client/src/utils/tvGuide.js`](client/src/utils/tvGuide.js) : on formate toujours en `Europe/Paris` (grille française, lisible depuis n'importe où), et l'heure murale se compare directement dans la chaîne (`slice(11, 16)`) sans aucun calcul de fuseau.
+
 ## Commandes
 
 ```bash
@@ -116,5 +138,7 @@ cd client && npm run dev      # front  :5173
 cd server && npm run dev      # API dev :3001 (Express + Prisma)
 cd client && npm run build    # build prod (vérifie toujours après un changement front)
 cd client && npx oxlint src/  # lint
+npm run tv:import            # programme TV → D1 distante (ce que fait le cron)
+npm run tv:import:local      # programme TV → server/dev.db (backend Express)
 npx wrangler d1 execute cinetrack-db --local --command "…"   # inspecter la D1 locale
 ```

@@ -9,6 +9,8 @@
     "deploy": "npm run build && wrangler pages deploy client/dist",
     "db:migrate:local": "wrangler d1 migrations apply cinetrack-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply cinetrack-db --remote",
+    "tv:import": "node scripts/import-tv-guide.mjs --apply",
+    "tv:import:local": "node scripts/import-tv-guide.mjs --apply --local",
     "pages:dev": "wrangler pages dev client/dist --d1=DB"
   },
   "repository": {

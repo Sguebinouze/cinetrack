@@ -10,6 +10,7 @@ import DetailPage from './pages/DetailPage'
 import PersonPage from './pages/PersonPage'
 import JournalPage from './pages/JournalPage'
 import WrappedPage from './pages/WrappedPage'
+import TvGuidePage from './pages/TvGuidePage'
 import UpdateNotification from './components/UpdateNotification'
 import { ToastProvider } from './components/Toast'
 
@@ -66,6 +67,7 @@ export default function App() {
                 <Route path="/" element={<Navigate to="/watchlist" replace />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/watchlist" element={<WatchlistPage />} />
+                <Route path="/tv" element={<TvGuidePage />} />
                 {/* Stats a fusionné dans « Moi ». Redirection pour ne pas casser un
                     raccourci PWA ou un onglet déjà ouvert sur l'ancienne URL. */}
                 <Route path="/stats" element={<Navigate to="/profile" replace />} />

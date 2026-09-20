@@ -543,6 +543,66 @@ app.delete('/lists/:id/items/:mediaId', async (c) => {
   return c.json({ ok: true })
 })
 
+// ── PROGRAMME TV (TNT) ────────────────────────────────────
+// Lecture seule : les tables sont peuplées par scripts/import-tv-guide.mjs, lancé
+// chaque jour par GitHub Actions (cf. migrations/0006_tv_guide.sql).
+//
+// La grille est servie SANS les résumés : 700 programmes par jour × 500 caractères,
+// ça fait ~350 Ko de texte qu'on jetterait pour afficher une liste d'horaires. Le
+// détail est chargé à l'ouverture d'un programme, par /tv-guide/program/:id.
+const parseJsonColumn = (v) => { try { return v ? JSON.parse(v) : [] } catch { return [] } }
+
+app.get('/tv-guide', async (c) => {
+  const db = c.env.DB
+  const [{ results: days }, { results: channels }] = await db.batch([
+    db.prepare('SELECT DISTINCT day FROM TvProgram ORDER BY day'),
+    db.prepare('SELECT id, name, logo FROM TvChannel ORDER BY position'),
+  ])
+  const available = days.map(d => d.day)
+  if (!available.length) return c.json({ days: [], day: null, channels: [] })
+
+  // Jour demandé, ou le jour courant s'il est dans la fenêtre, ou le premier connu.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  const asked = c.req.query('day')
+  const day = available.includes(asked) ? asked : (available.includes(today) ? today : available[0])
+
+  const { results: programs } = await db.prepare(`
+    SELECT id, channelId, startsAt, endsAt, title, subTitle, categories, episodeLabel
+    FROM TvProgram WHERE day = ? ORDER BY channelId, startsAt
+  `).bind(day).all()
+
+  // `channelId` sert au regroupement puis disparaît : il est déjà porté par la
+  // chaîne qui contient la liste, le répéter 800 fois ne fait qu'alourdir.
+  const byChannel = new Map(channels.map(ch => [ch.id, []]))
+  for (const { channelId, categories, ...p } of programs) {
+    byChannel.get(channelId)?.push({ ...p, categories: parseJsonColumn(categories) })
+  }
+
+  return c.json({
+    days: available,
+    day,
+    // Une chaîne sans aucun programme ce jour-là n'a rien à montrer : on la retire
+    // plutôt que d'afficher une colonne vide.
+    channels: channels
+      .map(ch => ({ ...ch, programs: byChannel.get(ch.id) || [] }))
+      .filter(ch => ch.programs.length),
+  })
+})
+
+app.get('/tv-guide/program/:id', async (c) => {
+  const program = await c.env.DB.prepare('SELECT * FROM TvProgram WHERE id = ?')
+    .bind(c.req.param('id')).first()
+  if (!program) return c.json({ error: 'Program not found' }, 404)
+  const channel = await c.env.DB.prepare('SELECT id, name, logo FROM TvChannel WHERE id = ?')
+    .bind(program.channelId).first()
+  return c.json({
+    ...program,
+    categories: parseJsonColumn(program.categories),
+    actors: parseJsonColumn(program.actors),
+    channel,
+  })
+})
+
 // ── STATS ─────────────────────────────────────────────────
 app.get('/stats', async (c) => {
   // On rapatrie la progression épisode avec chaque fiche : le statut déclaré ne dit pas

@@ -47,6 +47,14 @@ export const listsApi = {
   removeItem: (listId, mediaId) => api.delete(`/lists/${listId}/items/${mediaId}`).then(r => r.data),
 }
 
+export const tvGuideApi = {
+  // La grille d'un jour, chaîne par chaîne. Sans les résumés : ~700 programmes par
+  // jour, les charger en entier pour afficher des horaires coûterait ~350 Ko.
+  day: (day) => api.get('/tv-guide', { params: day ? { day } : {} }).then(r => r.data),
+  // Fiche complète d'un programme — résumé, casting, réalisateur, signalétique.
+  program: (id) => api.get(`/tv-guide/program/${id}`).then(r => r.data),
+}
+
 export const statsApi = {
   get: () => api.get('/stats').then(r => r.data),
   journal: () => api.get('/stats/journal').then(r => r.data),

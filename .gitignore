@@ -25,3 +25,6 @@ Thumbs.db
 
 # Wrangler local state
 .wrangler/
+
+# Sortie de scripts/import-tv-guide.mjs
+var/
