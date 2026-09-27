@@ -11,9 +11,9 @@
  * est hors de portée. L'ingestion vit donc dans GitHub Actions (.github/workflows/
  * tv-guide.yml), et l'API se contente d'un SELECT.
  *
- * On ne garde que J-2 → J+4. J-2 n'est jamais dans le fichier source : il vient de
- * l'exécution de l'avant-veille, d'où le fait qu'on purge par fenêtre et qu'on ne
- * réécrit QUE les jours réellement présents dans le flux.
+ * On ne garde que J-1 → J+4 (« Hier » est le plus ancien onglet de la page). On
+ * purge par fenêtre et on ne réécrit QUE les jours couverts de bout en bout par le
+ * flux : un jour partiel est complété, jamais remplacé.
  *
  * Usage :
  *   node scripts/import-tv-guide.mjs            # génère les .sql dans var/tv-guide/
@@ -32,7 +32,7 @@ import { join } from 'node:path'
 const SOURCE = 'https://xmltvfr.fr/xmltv/xmltv_tnt.xml.gz'
 const OUT_DIR = 'var/tv-guide'
 const DEV_DB = 'server/dev.db'
-const DAYS_BEFORE = 2
+const DAYS_BEFORE = 1
 const DAYS_AFTER = 4
 
 // La grille d'une chaîne se lit par soirée : ce qui commence à 00h30 appartient
@@ -267,10 +267,10 @@ async function main() {
   if (!kept.length) throw new Error('aucun programme dans la fenêtre — flux suspect, on n’écrit rien')
 
   // Le flux commence au milieu d'un jour de grille : les programmes de J-1 entre
-  // 00h et 5h sont rattachés à J-2, qui n'est donc présent que sous forme de bout
-  // de nuit. Remplacer ce jour-là effacerait l'archive complète qu'on tient de
-  // l'exécution d'avant-hier — on ne réécrit que les jours couverts de bout en bout
-  // (l'heure murale suffit à comparer, le flux est entièrement en heure de Paris).
+  // 00h et 5h sont rattachés à J-2, hors fenêtre et donc écartés ci-dessus. Garde-
+  // fou si le flux venait à commencer plus tard : un jour qu'il ne couvre pas de
+  // bout en bout n'est jamais remplacé, seulement complété (l'heure murale suffit
+  // à comparer, le flux est entièrement en heure de Paris).
   const firstStart = kept.reduce((min, p) => (p.startsAt < min ? p.startsAt : min), kept[0].startsAt).slice(0, 19)
   const completeDays = daysInPayload.filter(d => `${d}T0${TV_DAY_CUTOFF_HOUR}:00:00` >= firstStart)
   const partial = daysInPayload.filter(d => !completeDays.includes(d))
@@ -283,7 +283,7 @@ async function main() {
       'ON CONFLICT(id) DO UPDATE SET name=excluded.name, logo=excluded.logo, position=excluded.position;'
     )
   }
-  // Purge hors fenêtre : c'est ce qui fait expirer J-3 et au-delà.
+  // Purge hors fenêtre : c'est ce qui fait expirer J-2 et au-delà.
   statements.push(`DELETE FROM TvProgram WHERE day < ${q(from)} OR day > ${q(to)};`)
   // Puis remplacement jour par jour, uniquement pour les jours complets. Les jours
   // partiels sont complétés sans rien effacer : le INSERT OR IGNORE ci-dessous

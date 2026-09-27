@@ -20,7 +20,7 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    name: Importer J-2 → J+4 dans la D1
+    name: Importer J-1 → J+4 dans la D1
     steps:
       - uses: actions/checkout@v4
 

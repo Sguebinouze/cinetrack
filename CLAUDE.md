@@ -124,9 +124,13 @@ L'onglet **« Pour toi »** est le défaut de Découvrir. Les autres onglets res
 
 ## Programme TV : la seule donnée qui n'entre pas par l'API
 
-Source : **[xmltvfr.fr](https://xmltvfr.fr)** (fichier TNT, 30 chaînes, ~1,2 Mo gzip / 7 Mo de XML), généré chaque nuit vers 02h10 par [racacax/XML-TV-Fr](https://github.com/racacax/XML-TV-Fr). Il couvre **J-1 → J+8** ; on n'en conserve que **J-2 → J+4**.
+Source : **[xmltvfr.fr](https://xmltvfr.fr)** (fichier TNT, 30 chaînes, ~1,2 Mo gzip / 7 Mo de XML), généré chaque nuit vers 02h10 par [racacax/XML-TV-Fr](https://github.com/racacax/XML-TV-Fr). Il couvre **J-1 → J+8** ; on n'en conserve que **J-1 → J+4** (« Hier » est l'onglet le plus ancien, J-2 a été retiré).
 
-> ⚠️ **J-2 ne vient jamais du flux** : il est l'archive laissée par l'exécution de l'avant-veille. D'où le fonctionnement de [`scripts/import-tv-guide.mjs`](scripts/import-tv-guide.mjs) — il purge hors fenêtre, puis ne **réécrit que les jours couverts de bout en bout** par le flux. Un jour partiel (la nuit de J-1, rattachée à J-2) est complété en `INSERT OR IGNORE`, jamais remplacé. Casser ça efface l'historique.
+> [`scripts/import-tv-guide.mjs`](scripts/import-tv-guide.mjs) purge hors fenêtre, puis ne **réécrit que les jours couverts de bout en bout** par le flux. La nuit de J-1 (00h–5h) est rattachée à J-2, donc écartée par la fenêtre ; un jour partiel est complété en `INSERT OR IGNORE`, jamais remplacé — garde-fou à conserver si l'on rallonge un jour la fenêtre vers le passé.
+>
+> L'API filtre aussi `days >= veille` : entre minuit et le cron (05h30), la base contient encore l'avant-veille, qui ne doit pas réapparaître.
+
+**Onglet « Ce soir »** (le jour courant, ouvert par défaut) : il met en avant la **première partie de soirée** (dernier programme commencé avant 21h15) ; une fois la soirée entamée (après 21h15, ou avant 5h), il bascule sur ce qui passe en ce moment (`isEvening`). Toucher une chaîne ouvre toujours la journée complète, défilée jusqu'au programme mis en avant.
 
 **L'ingestion n'est pas une route.** Les Pages Functions n'ont pas de cron trigger (c'est une fonctionnalité Workers) et le plan gratuit plafonne à **10 ms de CPU par invocation** : parser 7 Mo de XML dans l'API est hors de portée. Le cron de l'app est donc [`.github/workflows/tv-guide.yml`](.github/workflows/tv-guide.yml), qui réutilise les secrets Cloudflare déjà posés pour le déploiement. L'API ne fait que des `SELECT`.
 
@@ -137,7 +141,7 @@ Pièges vérifiés, à ne pas réapprendre :
 3. Pour tester le chemin prod, lancer `wrangler pages dev client/dist` **sans `--d1=`** — le drapeau crée un magasin local séparé de celui de `d1 execute --local`, et la table paraît absente.
 4. Le contenu de `<rating>` est lui-même balisé (`<rating><value>-10</value></rating>`) : descendre jusqu'au `<value>`.
 
-**Jour de grille** : `TvProgram.day` n'est pas le jour calendaire. Ce qui commence **avant 5h du matin appartient à la soirée de la veille**, comme dans n'importe quel magazine TV. C'est la colonne sur laquelle la page filtre, et elle est calculée à l'import.
+**Jour de grille** : `TvProgram.day` n'est pas le jour calendaire. Ce qui commence **avant 5h du matin appartient à la soirée de la veille**, comme dans n'importe quel magazine TV. C'est la colonne sur laquelle la page filtre, et elle est calculée à l'import. Le « jour courant » suit la même règle, côté client (`parisToday`) comme côté API : à 1h du matin, « Ce soir » est la soirée de la veille.
 
 **La grille est servie sans les résumés.** `GET /api/tv-guide?day=` renvoie ~800 programmes ; embarquer `description`, `imageUrl`, `actors` et `csa` ajouterait ~350 Ko de texte que la liste n'affiche pas. Le détail est chargé à l'ouverture, par `GET /api/tv-guide/program/:id`. Même philosophie que l'agrégation SQL de `/api/watchlist`.
 

@@ -11,14 +11,22 @@
 
 const PARIS = 'Europe/Paris'
 
-// Le prime time français. Sert de point de mire pour un jour qui n'est pas
-// aujourd'hui : « en ce moment » n'y veut rien dire, mais « ce qu'il y avait en
-// première partie de soirée » est exactement ce qu'on cherche.
+// Le prime time français : c'est ce qu'on vient chercher dans un programme TV,
+// y compris pour le jour même (onglet « Ce soir »).
 const PRIME_TIME = '21:15'
 
-/** Clé « AAAA-MM-JJ » du jour parisien courant. */
+// Même coupure que l'import (TvProgram.day) : ce qui passe avant 5h appartient à
+// la soirée de la veille.
+const TV_DAY_CUTOFF_HOUR = 5
+
+/**
+ * Clé « AAAA-MM-JJ » du jour de GRILLE courant, pas du jour calendaire : à 1h du
+ * matin, « Ce soir » est encore la soirée entamée la veille. Reculer l'instant de
+ * 5h avant de le lire en heure de Paris suffit.
+ */
 export const parisToday = (now = new Date()) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: PARIS, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  new Intl.DateTimeFormat('en-CA', { timeZone: PARIS, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(new Date(now.getTime() - TV_DAY_CUTOFF_HOUR * 3_600_000))
 
 const formatParis = (date, options) =>
   new Intl.DateTimeFormat('fr-FR', { timeZone: PARIS, ...options }).format(date)
@@ -30,14 +38,14 @@ export const formatTime = (iso) =>
   iso ? formatParis(new Date(iso), { hour: '2-digit', minute: '2-digit' }).replace(':', 'h') : null
 
 /**
- * Libellé d'un onglet de jour : « Hier », « Aujourd'hui », « Demain », sinon
+ * Libellé d'un onglet de jour : « Hier », « Ce soir », « Demain », sinon
  * « Sam. 26 ». Sur sept jours on ne répète jamais un même jour de semaine, le
  * numéro suffit à lever l'ambiguïté.
  * @param {string} day  « AAAA-MM-JJ »
  */
 export function dayLabel(day, today = parisToday()) {
   const diff = Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)
-  if (diff === 0) return "Aujourd'hui"
+  if (diff === 0) return 'Ce soir'
   if (diff === 1) return 'Demain'
   if (diff === -1) return 'Hier'
   const date = new Date(`${day}T12:00:00Z`)
@@ -77,8 +85,18 @@ export function liveProgress(program, now = new Date()) {
 }
 
 /**
- * Le programme à mettre en avant pour une chaîne, sur le jour affiché : celui à
- * l'antenne si on regarde aujourd'hui, sinon celui de la première partie de soirée.
+ * La soirée a-t-elle commencé ? Passé 21h15 (ou après minuit, soirée de la
+ * veille), ce qui compte ce soir est ce qui passe en ce moment.
+ */
+export function isEvening(now = new Date()) {
+  const wall = formatParis(now, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  return wall >= PRIME_TIME || wall < `0${TV_DAY_CUTOFF_HOUR}:00`
+}
+
+/**
+ * Le programme à mettre en avant pour une chaîne, sur le jour affiché : celui de
+ * la première partie de soirée, sauf ce soir une fois la soirée entamée, où c'est
+ * celui à l'antenne.
  *
  * @param {Array} programs  Ordonnés par startsAt.
  * @param {string} day      Jour de grille affiché.
@@ -86,7 +104,7 @@ export function liveProgress(program, now = new Date()) {
  */
 export function featuredProgram(programs, day, today = parisToday(), now = new Date()) {
   if (!programs?.length) return null
-  if (day === today) {
+  if (day === today && isEvening(now)) {
     const live = programs.find(p => isLive(p, now))
     if (live) return live
   }

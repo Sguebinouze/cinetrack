@@ -640,12 +640,18 @@ app.get('/tv-guide', async (c) => {
     db.prepare('SELECT DISTINCT day FROM TvProgram ORDER BY day'),
     db.prepare('SELECT id, name, logo FROM TvChannel ORDER BY position'),
   ])
-  const available = days.map(d => d.day)
+  // Jour de GRILLE courant (avant 5h ⇒ soirée de la veille, comme TvProgram.day).
+  // On ne sert rien d'antérieur à la veille : entre minuit et le cron du matin, la
+  // base contient encore l'avant-veille, qui ne doit pas réapparaître.
+  const tvDay = (offsetDays) =>
+    new Date(Date.now() - 5 * 3_600_000 + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  const today = tvDay(0)
+  const yesterday = tvDay(-1)
+  const available = days.map(d => d.day).filter(d => d >= yesterday)
   if (!available.length) return c.json({ days: [], day: null, channels: [] })
 
-  // Jour demandé, ou le jour courant s'il est dans la fenêtre, ou le premier connu.
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
   const asked = c.req.query('day')
+  // Jour demandé, ou ce soir s'il est dans la fenêtre, ou le premier connu.
   const day = available.includes(asked) ? asked : (available.includes(today) ? today : available[0])
 
   const { results: programs } = await db.prepare(`

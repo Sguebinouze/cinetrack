@@ -5,14 +5,14 @@ import { tvGuideApi } from '../services/api'
 import TvProgramSheet from '../components/TvProgramSheet'
 import {
   parisToday, dayLabel, dayTitle, formatTime, formatDuration,
-  isLive, liveProgress, featuredProgram, mainCategory,
+  isLive, isEvening, liveProgress, featuredProgram, mainCategory,
 } from '../utils/tvGuide'
 
 const ALL = '__all__'
 
 export default function TvGuidePage() {
-  // `null` = « le jour courant », que le serveur résout lui-même : il connaît la
-  // fenêtre réellement importée, le client non.
+  // `null` = « ce soir », que le serveur résout lui-même : il connaît la fenêtre
+  // réellement importée, le client non.
   const [day, setDay] = useState(null)
   const [channelId, setChannelId] = useState(() => localStorage.getItem('cinetrack-tv-channel') || ALL)
   const [opened, setOpened] = useState(null)
@@ -57,7 +57,7 @@ export default function TvGuidePage() {
           </p>
         </div>
 
-        {/* Jours — la fenêtre vient du serveur, elle vaut J-2 → J+4 */}
+        {/* Jours — la fenêtre vient du serveur, elle vaut J-1 → J+4 */}
         {days.length > 0 && (
           <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 pb-2">
             {days.map(d => (
@@ -160,12 +160,12 @@ export default function TvGuidePage() {
   )
 }
 
-/** Une ligne par chaîne : ce qui passe en ce moment, ou la première partie de soirée. */
+/** Une ligne par chaîne : la première partie de soirée, ou ce qui passe une fois la soirée entamée. */
 function ChannelOverview({ channels, day, today, now, onPick, onChannel }) {
   return (
     <div className="flex flex-col gap-2 px-4 pt-3">
       <p className="text-xs text-text-dim uppercase tracking-widest mb-1">
-        {day === today ? 'En ce moment' : 'Première partie de soirée'}
+        {day === today && isEvening(now) ? 'En ce moment' : 'Première partie de soirée'}
       </p>
       {channels.map(ch => {
         const program = featuredProgram(ch.programs, day, today, now)
